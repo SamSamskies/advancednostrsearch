@@ -1,0 +1,17 @@
+footer {
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background: lightgrey;
+}
+
+footer p {
+    margin-left: 16px;
+    font-size: 36px;
+    cursor: pointer;
+    padding: 8px 0;
+}
