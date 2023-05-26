@@ -100,7 +100,7 @@ export default function App() {
 
   return (
     <Container mt={16}>
-      <Heading mb={2}>Advanced Nostr Notes Filter</Heading>
+      <Heading mb={2}>Advanced Nostr Search</Heading>
       <form onSubmit={handleSubmit}>
         <VStack>
           <Input
