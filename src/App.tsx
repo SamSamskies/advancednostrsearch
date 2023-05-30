@@ -99,7 +99,7 @@ export default function App() {
   };
 
   return (
-    <Container mt={16}>
+    <Container mt={16} pb={100}>
       <Heading mb={2}>Advanced Nostr Search</Heading>
       <form onSubmit={handleSubmit}>
         <VStack>
