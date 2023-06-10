@@ -21,7 +21,7 @@ export const NoteContent = ({ content }: { content: string }) => {
       return (
         <Box my={2}>
           <video key={index} src={part} controls style={{ width: "100%" }}>
-            Your browser does not support the video tag.
+            {part}
           </video>
         </Box>
       );
