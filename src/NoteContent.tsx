@@ -1,20 +1,34 @@
-import { Image } from "@chakra-ui/react";
+import { Fragment } from "react";
+import { Image, Box } from "@chakra-ui/react";
 
-const replaceImageUrlsWithImages = (content: string) => {
+export const NoteContent = ({ content }: { content: string }) => {
   const imageUrlRegex =
     /(https?:\/\/.*\.(?:png|jpg|jpeg|jfif|gif|bmp|svg|webp))/gi;
-  const parts = content.split(imageUrlRegex);
+  const videoUrlRegex = /(https?:\/\/.*\.(?:mp4|mov|ogg|webm|mkv|avi|m4v))/gi;
+  const parts = content.split(
+    new RegExp(`(?:${imageUrlRegex.source}|${videoUrlRegex.source})`, "gi")
+  );
+  const formattedContent = parts.map((part, index) => {
+    if (part === undefined) {
+      return null;
+    }
 
-  return parts.map((part, index) => {
     if (part.match(imageUrlRegex)) {
       return <Image key={index} src={part} alt={part} my={2} />;
     }
-    return part;
-  });
-};
 
-export const NoteContent = ({ content }: { content: string }) => {
-  let formattedContent = replaceImageUrlsWithImages(content);
+    if (part.match(videoUrlRegex)) {
+      return (
+        <Box my={2}>
+          <video key={index} src={part} controls style={{ width: "100%" }}>
+            Your browser does not support the video tag.
+          </video>
+        </Box>
+      );
+    }
+
+    return <Fragment key={index}>{part}</Fragment>;
+  });
 
   return <>{formattedContent}</>;
 };
