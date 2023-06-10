@@ -17,6 +17,7 @@ import {
 } from "@chakra-ui/react";
 import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
+import { NoteContent } from "./NoteContent";
 
 export default function App() {
   const [isSearching, setIsSearching] = useState(false);
@@ -161,8 +162,10 @@ export default function App() {
 
         return (
           <Card key={id} p={4} mt={8}>
-            <Text fontWeight="bold">{formatCreateAtDate(created_at)}</Text>
-            <Text>{content}</Text>
+            <Text fontWeight="bold" mb={2}>
+              {formatCreateAtDate(created_at)}
+            </Text>
+            <NoteContent content={content} />
             <HStack mt={4} justifyContent="right">
               <Link href={`nostr:${noteId}`} isExternal>
                 <Button>Open</Button>
