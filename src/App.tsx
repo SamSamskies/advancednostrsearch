@@ -1,4 +1,10 @@
-import { useState, type FormEventHandler } from "react";
+import {
+  useState,
+  type FormEventHandler,
+  type ChangeEvent,
+  type SetStateAction,
+  type Dispatch,
+} from "react";
 import {
   Container,
   Heading,
@@ -20,11 +26,14 @@ import copy from "copy-to-clipboard";
 import { NoteContent } from "./NoteContent";
 
 export default function App() {
+  const queryParams = new URLSearchParams(window.location.search);
   const [isSearching, setIsSearching] = useState(false);
-  const [npub, setNpub] = useState<string>();
-  const [query, setQuery] = useState<string>();
-  const [fromDate, setFromDate] = useState<number>();
-  const [toDate, setToDate] = useState<number>();
+  const [npub, setNpub] = useState<string>(queryParams.get("npub") ?? "");
+  const [query, setQuery] = useState<string>(queryParams.get("query") ?? "");
+  const [fromDate, setFromDate] = useState<string>(
+    queryParams.get("fromDate") ?? ""
+  );
+  const [toDate, setToDate] = useState<string>(queryParams.get("toDate") ?? "");
   const [events, setEvents] = useState<Event[]>([]);
   const toast = useToast();
   const decodeNpub = (npub: string) => {
@@ -43,6 +52,8 @@ export default function App() {
       }
     }
   };
+  const convertDateToUnixTimestamp = (date: string) =>
+    new Date(date).getTime() / 1000;
   const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
 
@@ -66,8 +77,8 @@ export default function App() {
           kinds: [1],
           authors: decodedNpub ? [decodedNpub] : undefined,
           search: query && query.length > 0 ? query : undefined,
-          since: fromDate,
-          until: toDate,
+          since: fromDate ? convertDateToUnixTimestamp(fromDate) : undefined,
+          until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
         },
       ]);
 
@@ -98,6 +109,25 @@ export default function App() {
 
     return `${monthName} ${day}`;
   };
+  const makeOnChangeHandler =
+    (set: Dispatch<SetStateAction<string>>, key: string) =>
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const queryParams = new URLSearchParams(window.location.search);
+
+      if (e.target.value) {
+        queryParams.set(key, e.target.value);
+      } else {
+        queryParams.delete(key);
+      }
+
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}?${queryParams.toString()}`
+      );
+
+      set(e.target.value);
+    };
 
   return (
     <Container mt={16} pb={100}>
@@ -107,11 +137,13 @@ export default function App() {
           <Input
             autoFocus
             placeholder="author npub"
-            onChange={(e) => setNpub(e.target.value)}
+            onChange={makeOnChangeHandler(setNpub, "npub")}
+            value={npub}
           />
           <Input
             placeholder="search query"
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={makeOnChangeHandler(setQuery, "query")}
+            value={query}
           />
           <HStack w="100%">
             <FormControl>
@@ -120,13 +152,8 @@ export default function App() {
                 placeholder="since"
                 size="md"
                 type="date"
-                onChange={(e) =>
-                  setFromDate(
-                    e.target.value
-                      ? new Date(e.target.value).getTime() / 1000
-                      : undefined
-                  )
-                }
+                onChange={makeOnChangeHandler(setFromDate, "fromDate")}
+                value={fromDate}
               />
             </FormControl>
             <FormControl>
@@ -135,13 +162,8 @@ export default function App() {
                 placeholder="until"
                 size="md"
                 type="date"
-                onChange={(e) =>
-                  setToDate(
-                    e.target.value
-                      ? new Date(e.target.value).getTime() / 1000
-                      : undefined
-                  )
-                }
+                onChange={makeOnChangeHandler(setToDate, "toDate")}
+                value={toDate}
               />
             </FormControl>
           </HStack>
