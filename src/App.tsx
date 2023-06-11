@@ -20,6 +20,7 @@ import {
   useToast,
   Box,
   Flex,
+  Checkbox,
 } from "@chakra-ui/react";
 import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
@@ -30,6 +31,8 @@ export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const [isSearching, setIsSearching] = useState(false);
   const [npub, setNpub] = useState<string>(queryParams.get("npub") ?? "");
+  const [includeNotesFromFollowedUsers, setIncludeNotesFromFollowedUsers] =
+    useState(false);
   const [query, setQuery] = useState<string>(queryParams.get("query") ?? "");
   const [fromDate, setFromDate] = useState<string>(
     queryParams.get("fromDate") ?? ""
@@ -67,17 +70,36 @@ export default function App() {
       return;
     }
 
+    const decodedNpub = decodeNpub(npub);
+
+    if (!decodedNpub) {
+      return;
+    }
+
     setIsSearching(true);
     const relay = relayInit("wss://relay.nostr.band");
 
     relay.on("connect", async () => {
       console.log(`connected to ${relay.url}`);
 
-      const decodedNpub = npub && decodeNpub(npub);
+      let followedAuthorPubkeys: string[] = [];
+
+      if (includeNotesFromFollowedUsers) {
+        const contactListEvent = await relay.get({
+          kinds: [3],
+          authors: [decodedNpub],
+        });
+
+        followedAuthorPubkeys =
+          contactListEvent?.tags.map(([_, pubkey]) => pubkey) ?? [];
+      }
+
       const events = await relay.list([
         {
           kinds: [1],
-          authors: decodedNpub ? [decodedNpub] : undefined,
+          authors: includeNotesFromFollowedUsers
+            ? [...followedAuthorPubkeys, decodedNpub]
+            : [decodedNpub],
           search: query && query.length > 0 ? query : undefined,
           since: fromDate ? convertDateToUnixTimestamp(fromDate) : undefined,
           until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
@@ -148,6 +170,14 @@ export default function App() {
             onChange={makeOnChangeHandler(setNpub, "npub")}
             value={npub}
           />
+          <Box alignSelf="flex-start" pb={4}>
+            <Checkbox
+              colorScheme="purple"
+              onChange={() => setIncludeNotesFromFollowedUsers((prev) => !prev)}
+            >
+              Include results from users that your specified author follows
+            </Checkbox>
+          </Box>
           <Input
             placeholder="search query"
             onChange={makeOnChangeHandler(setQuery, "query")}
