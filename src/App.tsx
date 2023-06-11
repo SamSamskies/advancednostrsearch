@@ -23,6 +23,7 @@ import {
 } from "@chakra-ui/react";
 import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
+import InfiniteScroll from "react-infinite-scroll-component";
 import { NoteContent } from "./NoteContent";
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
   );
   const [toDate, setToDate] = useState<string>(queryParams.get("toDate") ?? "");
   const [events, setEvents] = useState<Event[]>([]);
+  const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
   const decodeNpub = (npub: string) => {
     try {
@@ -89,6 +91,7 @@ export default function App() {
         });
       }
 
+      setCurrentDataLength(Math.min(5, events.length));
       setEvents(events);
       setIsSearching(false);
       relay.close();
@@ -128,6 +131,11 @@ export default function App() {
 
       set(e.target.value);
     };
+  const updateCurrentDataLength = () => {
+    setCurrentDataLength((prev) =>
+      prev + 5 < events.length ? prev + 5 : events.length
+    );
+  };
 
   return (
     <Container mt={16} pb={100}>
@@ -179,42 +187,51 @@ export default function App() {
           </Button>
         </Flex>
       </form>
-      {events.map(({ id, content, created_at }) => {
-        const noteId = nip19.noteEncode(id);
+      <InfiniteScroll
+        dataLength={currentDataLength}
+        next={updateCurrentDataLength}
+        loader={null}
+        hasMore={currentDataLength < events.length}
+      >
+        {events
+          .slice(0, currentDataLength)
+          .map(({ id, content, created_at }) => {
+            const noteId = nip19.noteEncode(id);
 
-        return (
-          <Card key={id} p={4} mt={8}>
-            <Text fontWeight="bold" mb={2}>
-              {formatCreateAtDate(created_at)}
-            </Text>
-            <NoteContent content={content} />
-            <HStack mt={4} justifyContent="right">
-              <Link href={`nostr:${noteId}`} isExternal>
-                <Button>Open</Button>
-              </Link>
-              <Button
-                onClick={() => {
-                  toast({
-                    render: () => (
-                      <Box
-                        p={3}
-                        bg="purple.100"
-                        textAlign="center"
-                        borderRadius={8}
-                      >
-                        copied to clipboard
-                      </Box>
-                    ),
-                  });
-                  copy(noteId);
-                }}
-              >
-                Copy ID
-              </Button>
-            </HStack>
-          </Card>
-        );
-      })}
+            return (
+              <Card key={id} p={4} mt={8}>
+                <Text fontWeight="bold" mb={2}>
+                  {formatCreateAtDate(created_at)}
+                </Text>
+                <NoteContent content={content} />
+                <HStack mt={4} justifyContent="right">
+                  <Link href={`nostr:${noteId}`} isExternal>
+                    <Button>Open</Button>
+                  </Link>
+                  <Button
+                    onClick={() => {
+                      toast({
+                        render: () => (
+                          <Box
+                            p={3}
+                            bg="purple.100"
+                            textAlign="center"
+                            borderRadius={8}
+                          >
+                            copied to clipboard
+                          </Box>
+                        ),
+                      });
+                      copy(noteId);
+                    }}
+                  >
+                    Copy ID
+                  </Button>
+                </HStack>
+              </Card>
+            );
+          })}
+      </InfiniteScroll>
     </Container>
   );
 }
