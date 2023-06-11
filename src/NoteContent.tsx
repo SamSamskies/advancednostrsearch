@@ -19,8 +19,8 @@ export const NoteContent = ({ content }: { content: string }) => {
 
     if (part.match(videoUrlRegex)) {
       return (
-        <Box my={2}>
-          <video key={index} src={part} controls style={{ width: "100%" }}>
+        <Box key={index} my={2}>
+          <video src={part} controls style={{ width: "100%" }}>
             {part}
           </video>
         </Box>
