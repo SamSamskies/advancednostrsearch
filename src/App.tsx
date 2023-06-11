@@ -27,12 +27,14 @@ import copy from "copy-to-clipboard";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { NoteContent } from "./NoteContent";
 
+const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "includeFollowed";
+
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const [isSearching, setIsSearching] = useState(false);
   const [npub, setNpub] = useState<string>(queryParams.get("npub") ?? "");
   const [includeNotesFromFollowedUsers, setIncludeNotesFromFollowedUsers] =
-    useState(false);
+    useState(queryParams.get(INCLUDE_FOLLOWED_USERS_QUERY_PARAM) === "1");
   const [query, setQuery] = useState<string>(queryParams.get("query") ?? "");
   const [fromDate, setFromDate] = useState<string>(
     queryParams.get("fromDate") ?? ""
@@ -134,6 +136,13 @@ export default function App() {
 
     return `${monthName} ${day}`;
   };
+  const updateUrl = (queryParams: URLSearchParams) => {
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}?${queryParams.toString()}`
+    );
+  };
   const makeOnChangeHandler =
     (set: Dispatch<SetStateAction<string>>, key: string) =>
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -145,14 +154,20 @@ export default function App() {
         queryParams.delete(key);
       }
 
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}?${queryParams.toString()}`
-      );
-
+      updateUrl(queryParams);
       set(e.target.value);
     };
+  const updateIncludeFollowedQueryParam = (includeFollowed: boolean) => {
+    const queryParams = new URLSearchParams(window.location.search);
+
+    if (includeFollowed) {
+      queryParams.set(INCLUDE_FOLLOWED_USERS_QUERY_PARAM, "1");
+    } else {
+      queryParams.delete(INCLUDE_FOLLOWED_USERS_QUERY_PARAM);
+    }
+
+    updateUrl(queryParams);
+  };
   const updateCurrentDataLength = () => {
     setCurrentDataLength((prev) =>
       prev + 5 < events.length ? prev + 5 : events.length
@@ -173,7 +188,13 @@ export default function App() {
           <Box alignSelf="flex-start" pb={4}>
             <Checkbox
               colorScheme="purple"
-              onChange={() => setIncludeNotesFromFollowedUsers((prev) => !prev)}
+              isChecked={includeNotesFromFollowedUsers}
+              onChange={() => {
+                setIncludeNotesFromFollowedUsers((prev) => {
+                  updateIncludeFollowedQueryParam(!prev);
+                  return !prev;
+                });
+              }}
             >
               Include results from users that your specified author follows
             </Checkbox>
