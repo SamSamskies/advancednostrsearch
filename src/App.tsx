@@ -57,9 +57,9 @@ export default function App() {
   const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
 
-    if (!npub && !query) {
+    if (!npub) {
       toast({
-        title: "npub or search query is required",
+        title: "npub is required",
         status: "warning",
       });
       return;
