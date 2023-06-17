@@ -26,6 +26,12 @@ import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { NoteContent } from "./NoteContent";
+import {
+  convertDateToUnixTimestamp,
+  formatCreateAtDate,
+  decodeNpub,
+  chunkArray,
+} from "./utils";
 
 const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "includeFollowed";
 
@@ -43,24 +49,6 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
-  const decodeNpub = (npub: string) => {
-    try {
-      const { type, data } = nip19.decode(npub);
-
-      if (type === "npub") {
-        return data as string;
-      }
-    } catch (err) {
-      if (err instanceof Error) {
-        toast({
-          title: err.message,
-          status: "error",
-        });
-      }
-    }
-  };
-  const convertDateToUnixTimestamp = (date: string) =>
-    new Date(date).getTime() / 1000;
   const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
 
@@ -72,7 +60,18 @@ export default function App() {
       return;
     }
 
-    const decodedNpub = decodeNpub(npub);
+    let decodedNpub: string = "";
+
+    try {
+      decodedNpub = decodeNpub(npub) ?? "";
+    } catch (err) {
+      if (err instanceof Error) {
+        toast({
+          title: err.message,
+          status: "error",
+        });
+      }
+    }
 
     if (!decodedNpub) {
       return;
@@ -96,17 +95,29 @@ export default function App() {
           contactListEvent?.tags.map(([_, pubkey]) => pubkey) ?? [];
       }
 
-      const events = await relay.list([
-        {
-          kinds: [1],
-          authors: includeNotesFromFollowedUsers
-            ? [...followedAuthorPubkeys, decodedNpub]
-            : [decodedNpub],
-          search: query && query.length > 0 ? query : undefined,
-          since: fromDate ? convertDateToUnixTimestamp(fromDate) : undefined,
-          until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
-        },
-      ]);
+      const authors = includeNotesFromFollowedUsers
+        ? [...followedAuthorPubkeys, decodedNpub]
+        : [decodedNpub];
+      const dedupedAuthors = Array.from(new Set(authors));
+      const eventPromises = chunkArray(dedupedAuthors, 256).map(
+        (authorsChunk) => {
+          return relay.list([
+            {
+              kinds: [1],
+              authors: authorsChunk,
+              search: query && query.length > 0 ? query : undefined,
+              since: fromDate
+                ? convertDateToUnixTimestamp(fromDate)
+                : undefined,
+              until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
+            },
+          ]);
+        }
+      );
+      const eventChunks = await Promise.all(eventPromises);
+      const events = eventChunks
+        .flat()
+        .sort((a, b) => b.created_at - a.created_at);
 
       if (events.length === 0) {
         toast({
@@ -128,14 +139,7 @@ export default function App() {
 
     relay.connect();
   };
-  const formatCreateAtDate = (unixTimestamp: number) => {
-    const date = new Date(unixTimestamp * 1000);
-    const options: Intl.DateTimeFormatOptions = { month: "short" };
-    const monthName = date.toLocaleString(navigator.language, options);
-    const day = date.getDate();
 
-    return `${monthName} ${day}`;
-  };
   const updateUrl = (queryParams: URLSearchParams) => {
     window.history.replaceState(
       null,
