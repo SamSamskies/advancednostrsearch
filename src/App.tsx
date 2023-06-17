@@ -30,6 +30,7 @@ import {
   convertDateToUnixTimestamp,
   formatCreateAtDate,
   decodeNpub,
+  chunkArray,
 } from "./utils";
 
 const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "includeFollowed";
@@ -94,17 +95,29 @@ export default function App() {
           contactListEvent?.tags.map(([_, pubkey]) => pubkey) ?? [];
       }
 
-      const events = await relay.list([
-        {
-          kinds: [1],
-          authors: includeNotesFromFollowedUsers
-            ? [...followedAuthorPubkeys, decodedNpub]
-            : [decodedNpub],
-          search: query && query.length > 0 ? query : undefined,
-          since: fromDate ? convertDateToUnixTimestamp(fromDate) : undefined,
-          until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
-        },
-      ]);
+      const authors = includeNotesFromFollowedUsers
+        ? [...followedAuthorPubkeys, decodedNpub]
+        : [decodedNpub];
+      const dedupedAuthors = Array.from(new Set(authors));
+      const eventPromises = chunkArray(dedupedAuthors, 256).map(
+        (authorsChunk) => {
+          return relay.list([
+            {
+              kinds: [1],
+              authors: authorsChunk,
+              search: query && query.length > 0 ? query : undefined,
+              since: fromDate
+                ? convertDateToUnixTimestamp(fromDate)
+                : undefined,
+              until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
+            },
+          ]);
+        }
+      );
+      const eventChunks = await Promise.all(eventPromises);
+      const events = eventChunks
+        .flat()
+        .sort((a, b) => b.created_at - a.created_at);
 
       if (events.length === 0) {
         toast({
