@@ -26,6 +26,11 @@ import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { NoteContent } from "./NoteContent";
+import {
+  convertDateToUnixTimestamp,
+  formatCreateAtDate,
+  decodeNpub,
+} from "./utils";
 
 const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "includeFollowed";
 
@@ -43,24 +48,6 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
-  const decodeNpub = (npub: string) => {
-    try {
-      const { type, data } = nip19.decode(npub);
-
-      if (type === "npub") {
-        return data as string;
-      }
-    } catch (err) {
-      if (err instanceof Error) {
-        toast({
-          title: err.message,
-          status: "error",
-        });
-      }
-    }
-  };
-  const convertDateToUnixTimestamp = (date: string) =>
-    new Date(date).getTime() / 1000;
   const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
 
@@ -72,7 +59,18 @@ export default function App() {
       return;
     }
 
-    const decodedNpub = decodeNpub(npub);
+    let decodedNpub: string = "";
+
+    try {
+      decodedNpub = decodeNpub(npub) ?? "";
+    } catch (err) {
+      if (err instanceof Error) {
+        toast({
+          title: err.message,
+          status: "error",
+        });
+      }
+    }
 
     if (!decodedNpub) {
       return;
@@ -128,14 +126,7 @@ export default function App() {
 
     relay.connect();
   };
-  const formatCreateAtDate = (unixTimestamp: number) => {
-    const date = new Date(unixTimestamp * 1000);
-    const options: Intl.DateTimeFormatOptions = { month: "short" };
-    const monthName = date.toLocaleString(navigator.language, options);
-    const day = date.getDate();
 
-    return `${monthName} ${day}`;
-  };
   const updateUrl = (queryParams: URLSearchParams) => {
     window.history.replaceState(
       null,
