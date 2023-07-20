@@ -20,28 +20,16 @@ import {
   useToast,
   Box,
   Flex,
-  Checkbox,
 } from "@chakra-ui/react";
 import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { NoteContent } from "./NoteContent";
-import {
-  convertDateToUnixTimestamp,
-  formatCreateAtDate,
-  decodeNpub,
-  chunkArray,
-} from "./utils";
-
-const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "includeFollowed";
+import { convertDateToUnixTimestamp, formatCreateAtDate } from "./utils";
 
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const [isSearching, setIsSearching] = useState(false);
-  const [npub, setNpub] = useState<string>(queryParams.get("npub") ?? "");
-  const [includeNotesFromFollowedUsers, setIncludeNotesFromFollowedUsers] =
-    useState(queryParams.get(INCLUDE_FOLLOWED_USERS_QUERY_PARAM) === "1");
-  const [query, setQuery] = useState<string>(queryParams.get("query") ?? "");
   const [fromDate, setFromDate] = useState<string>(
     queryParams.get("fromDate") ?? ""
   );
@@ -49,75 +37,24 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
-  const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
+  const handleSubmit: FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
 
-    if (!npub) {
-      toast({
-        title: "npub is required",
-        status: "warning",
-      });
-      return;
-    }
-
-    let decodedNpub: string = "";
-
-    try {
-      decodedNpub = decodeNpub(npub) ?? "";
-    } catch (err) {
-      if (err instanceof Error) {
-        toast({
-          title: err.message,
-          status: "error",
-        });
-      }
-    }
-
-    if (!decodedNpub) {
-      return;
-    }
-
     setIsSearching(true);
-    const relay = relayInit("wss://relay.nostr.band");
+    const relay = relayInit("wss://relay.damus.io");
 
     relay.on("connect", async () => {
       console.log(`connected to ${relay.url}`);
-
-      let followedAuthorPubkeys: string[] = [];
-
-      if (includeNotesFromFollowedUsers) {
-        const contactListEvent = await relay.get({
-          kinds: [3],
-          authors: [decodedNpub],
-        });
-
-        followedAuthorPubkeys =
-          contactListEvent?.tags.map(([_, pubkey]) => pubkey) ?? [];
-      }
-
-      const authors = includeNotesFromFollowedUsers
-        ? [...followedAuthorPubkeys, decodedNpub]
-        : [decodedNpub];
-      const dedupedAuthors = Array.from(new Set(authors));
-      const eventPromises = chunkArray(dedupedAuthors, 256).map(
-        (authorsChunk) => {
-          return relay.list([
-            {
-              kinds: [1],
-              authors: authorsChunk,
-              search: query && query.length > 0 ? query : undefined,
-              since: fromDate
-                ? convertDateToUnixTimestamp(fromDate)
-                : undefined,
-              until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
-            },
-          ]);
-        }
-      );
-      const eventChunks = await Promise.all(eventPromises);
-      const events = eventChunks
-        .flat()
-        .sort((a, b) => b.created_at - a.created_at);
+      const events = await relay.list([
+        {
+          kinds: [1],
+          authors: [
+            "ee6ea13ab9fe5c4a68eaf9b1a34fe014a66b40117c50ee2a614f4cda959b6e74",
+          ],
+          since: fromDate ? convertDateToUnixTimestamp(fromDate) : undefined,
+          until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
+        },
+      ]);
 
       if (events.length === 0) {
         toast({
@@ -161,17 +98,6 @@ export default function App() {
       updateUrl(queryParams);
       set(e.target.value);
     };
-  const updateIncludeFollowedQueryParam = (includeFollowed: boolean) => {
-    const queryParams = new URLSearchParams(window.location.search);
-
-    if (includeFollowed) {
-      queryParams.set(INCLUDE_FOLLOWED_USERS_QUERY_PARAM, "1");
-    } else {
-      queryParams.delete(INCLUDE_FOLLOWED_USERS_QUERY_PARAM);
-    }
-
-    updateUrl(queryParams);
-  };
   const updateCurrentDataLength = () => {
     setCurrentDataLength((prev) =>
       prev + 5 < events.length ? prev + 5 : events.length
@@ -183,31 +109,6 @@ export default function App() {
       <Heading mb={2}>Advanced Nostr Search</Heading>
       <form onSubmit={handleSubmit}>
         <VStack>
-          <Input
-            autoFocus
-            placeholder="author npub"
-            onChange={makeOnChangeHandler(setNpub, "npub")}
-            value={npub}
-          />
-          <Box alignSelf="flex-start" pb={4}>
-            <Checkbox
-              colorScheme="purple"
-              isChecked={includeNotesFromFollowedUsers}
-              onChange={() => {
-                setIncludeNotesFromFollowedUsers((prev) => {
-                  updateIncludeFollowedQueryParam(!prev);
-                  return !prev;
-                });
-              }}
-            >
-              Include results from users that your specified author follows
-            </Checkbox>
-          </Box>
-          <Input
-            placeholder="search query"
-            onChange={makeOnChangeHandler(setQuery, "query")}
-            value={query}
-          />
           <HStack w="100%">
             <FormControl>
               <FormLabel>From Date</FormLabel>
