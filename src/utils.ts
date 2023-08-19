@@ -108,7 +108,9 @@ export const getUserReactionEventIds = async ({
     ]);
 
     return reactionEvents
-      .map((event) => (event.tags.find(([key]) => key === "e") ?? [])[1])
+      .map(
+        (event) => (event.tags.reverse().find(([key]) => key === "e") ?? [])[1]
+      )
       .filter((id) => id !== undefined);
   } catch (error) {
     console.error(
