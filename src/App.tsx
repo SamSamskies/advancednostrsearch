@@ -20,7 +20,9 @@ import {
   useToast,
   Box,
   Flex,
-  Checkbox,
+  RadioGroup,
+  Radio,
+  Stack,
 } from "@chakra-ui/react";
 import { relayInit, nip19, type Event } from "nostr-tools";
 import copy from "copy-to-clipboard";
@@ -31,16 +33,25 @@ import {
   formatCreateAtDate,
   decodeNpub,
   chunkArray,
+  getUserReactionEventIds,
 } from "./utils";
 
-const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "includeFollowed";
+const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "followed";
+const INCLUDE_ONLY_AUTHOR_QUERY_PARAM = "onlyAuthor";
+const INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM =
+  "onlyNotesAuthorReactedTo";
 
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const [isSearching, setIsSearching] = useState(false);
   const [npub, setNpub] = useState<string>(queryParams.get("npub") ?? "");
-  const [includeNotesFromFollowedUsers, setIncludeNotesFromFollowedUsers] =
-    useState(queryParams.get(INCLUDE_FOLLOWED_USERS_QUERY_PARAM) === "1");
+  const [include, setInclude] = useState<string>(
+    queryParams.get("include") ?? INCLUDE_ONLY_AUTHOR_QUERY_PARAM
+  );
+  const includeNotesFromFollowedUsers =
+    include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM;
+  const includeOnlyNotesAuthorReactedTo =
+    include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM;
   const [query, setQuery] = useState<string>(queryParams.get("query") ?? "");
   const [fromDate, setFromDate] = useState<string>(
     queryParams.get("fromDate") ?? ""
@@ -51,14 +62,6 @@ export default function App() {
   const toast = useToast();
   const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
-
-    if (!npub) {
-      toast({
-        title: "npub is required",
-        status: "warning",
-      });
-      return;
-    }
 
     let decodedNpub: string = "";
 
@@ -79,9 +82,23 @@ export default function App() {
 
     setIsSearching(true);
     const relay = relayInit("wss://relay.nostr.band");
+    const fetchEvents = async () => {
+      const defaultKindOneFilter = {
+        kinds: [1],
+        search: query && query.length > 0 ? query : undefined,
+        since: fromDate ? convertDateToUnixTimestamp(fromDate) : undefined,
+        until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
+      };
 
-    relay.on("connect", async () => {
-      console.log(`connected to ${relay.url}`);
+      if (includeOnlyNotesAuthorReactedTo) {
+        const reactionEventIds = await getUserReactionEventIds({
+          pubkey: decodedNpub,
+          since: defaultKindOneFilter.since,
+          until: defaultKindOneFilter.until,
+        });
+
+        return relay.list([{ ...defaultKindOneFilter, ids: reactionEventIds }]);
+      }
 
       let followedAuthorPubkeys: string[] = [];
 
@@ -103,21 +120,21 @@ export default function App() {
         (authorsChunk) => {
           return relay.list([
             {
-              kinds: [1],
+              ...defaultKindOneFilter,
               authors: authorsChunk,
-              search: query && query.length > 0 ? query : undefined,
-              since: fromDate
-                ? convertDateToUnixTimestamp(fromDate)
-                : undefined,
-              until: toDate ? convertDateToUnixTimestamp(toDate) : undefined,
             },
           ]);
         }
       );
       const eventChunks = await Promise.all(eventPromises);
-      const events = eventChunks
-        .flat()
-        .sort((a, b) => b.created_at - a.created_at);
+
+      return eventChunks.flat().sort((a, b) => b.created_at - a.created_at);
+    };
+
+    relay.on("connect", async () => {
+      console.log(`connected to ${relay.url}`);
+
+      const events = await fetchEvents();
 
       if (events.length === 0) {
         toast({
@@ -140,42 +157,49 @@ export default function App() {
     relay.connect();
   };
 
-  const updateUrl = (queryParams: URLSearchParams) => {
+  const updateUrl = (queryParams?: URLSearchParams) => {
     window.history.replaceState(
       null,
       "",
-      `${window.location.pathname}?${queryParams.toString()}`
+      queryParams
+        ? `${window.location.pathname}?${queryParams.toString()}`
+        : window.location.pathname
     );
   };
-  const makeOnChangeHandler =
-    (set: Dispatch<SetStateAction<string>>, key: string) =>
-    (e: ChangeEvent<HTMLInputElement>) => {
-      const queryParams = new URLSearchParams(window.location.search);
-
-      if (e.target.value) {
-        queryParams.set(key, e.target.value);
-      } else {
-        queryParams.delete(key);
-      }
-
-      updateUrl(queryParams);
-      set(e.target.value);
-    };
-  const updateIncludeFollowedQueryParam = (includeFollowed: boolean) => {
+  const updateQueryParams = (key: string, value: string) => {
     const queryParams = new URLSearchParams(window.location.search);
 
-    if (includeFollowed) {
-      queryParams.set(INCLUDE_FOLLOWED_USERS_QUERY_PARAM, "1");
+    if (value) {
+      queryParams.set(key, value);
     } else {
-      queryParams.delete(INCLUDE_FOLLOWED_USERS_QUERY_PARAM);
+      queryParams.delete(key);
     }
 
     updateUrl(queryParams);
+  };
+  const makeInputOnChangeHandler =
+    (set: Dispatch<SetStateAction<string>>, key: string) =>
+    (e: ChangeEvent<HTMLInputElement>) => {
+      updateQueryParams(key, e.target.value);
+      set(e.target.value);
+    };
+  const handleIncludeChange = (value: string) => {
+    updateQueryParams("include", value);
+    setInclude(value);
   };
   const updateCurrentDataLength = () => {
     setCurrentDataLength((prev) =>
       prev + 5 < events.length ? prev + 5 : events.length
     );
+  };
+  const handleClear = () => {
+    updateUrl();
+    setNpub("");
+    setInclude(INCLUDE_ONLY_AUTHOR_QUERY_PARAM);
+    setQuery("");
+    setFromDate("");
+    setToDate("");
+    setEvents([]);
   };
 
   return (
@@ -186,28 +210,35 @@ export default function App() {
           <Input
             autoFocus
             placeholder="author npub"
-            onChange={makeOnChangeHandler(setNpub, "npub")}
+            onChange={makeInputOnChangeHandler(setNpub, "npub")}
             value={npub}
+            required
           />
-          <Box alignSelf="flex-start" pb={4}>
-            <Checkbox
-              colorScheme="purple"
-              isChecked={includeNotesFromFollowedUsers}
-              onChange={() => {
-                setIncludeNotesFromFollowedUsers((prev) => {
-                  updateIncludeFollowedQueryParam(!prev);
-                  return !prev;
-                });
-              }}
-            >
-              Include results from users that your specified author follows
-            </Checkbox>
-          </Box>
           <Input
             placeholder="search query"
-            onChange={makeOnChangeHandler(setQuery, "query")}
+            onChange={makeInputOnChangeHandler(setQuery, "query")}
             value={query}
           />
+          <Card p={4}>
+            <RadioGroup
+              colorScheme="purple"
+              onChange={handleIncludeChange}
+              value={include}
+            >
+              <Stack>
+                <Radio value={INCLUDE_ONLY_AUTHOR_QUERY_PARAM}>
+                  Include only author notes
+                </Radio>
+                <Radio value={INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}>
+                  Include only notes author has reacted to
+                </Radio>
+                <Radio value={INCLUDE_FOLLOWED_USERS_QUERY_PARAM}>
+                  Include notes from author as well as notes from users that the
+                  author follows
+                </Radio>
+              </Stack>
+            </RadioGroup>
+          </Card>
           <HStack w="100%">
             <FormControl>
               <FormLabel>From Date</FormLabel>
@@ -215,7 +246,7 @@ export default function App() {
                 placeholder="since"
                 size="md"
                 type="date"
-                onChange={makeOnChangeHandler(setFromDate, "fromDate")}
+                onChange={makeInputOnChangeHandler(setFromDate, "fromDate")}
                 value={fromDate}
               />
             </FormControl>
@@ -225,19 +256,17 @@ export default function App() {
                 placeholder="until"
                 size="md"
                 type="date"
-                onChange={makeOnChangeHandler(setToDate, "toDate")}
+                onChange={makeInputOnChangeHandler(setToDate, "toDate")}
                 value={toDate}
               />
             </FormControl>
           </HStack>
         </VStack>
-        <Flex justifyContent="flex-end">
-          <Button
-            mt={4}
-            colorScheme="purple"
-            type="submit"
-            isLoading={isSearching}
-          >
+        <Flex justifyContent="flex-end" mt={4}>
+          <Button mr={2} onClick={handleClear}>
+            Clear
+          </Button>
+          <Button colorScheme="purple" type="submit" isLoading={isSearching}>
             Submit
           </Button>
         </Flex>
