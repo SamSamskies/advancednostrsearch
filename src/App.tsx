@@ -289,7 +289,7 @@ export default function App() {
                 </Text>
                 <NoteContent content={content} />
                 <HStack mt={4} justifyContent="right">
-                  <Link href={`nostr:${noteId}`} isExternal>
+                  <Link href={`https://nostr.com/${noteId}`} isExternal>
                     <Button>Open</Button>
                   </Link>
                   <Button
