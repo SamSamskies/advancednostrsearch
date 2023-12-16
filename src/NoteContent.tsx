@@ -1,20 +1,17 @@
 import { Fragment } from "react";
-import { Image, Box } from "@chakra-ui/react";
+import { Image, Box, Link } from "@chakra-ui/react";
 
 export const NoteContent = ({ content }: { content: string }) => {
   const newlineRegex = /(\r?\n)/gi;
+  const hyperlinkRegex = /(https?:\/\/[^\s]+)/gi;
   const wavlakeRegex =
-    /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
+    /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile|shows)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
   const imageUrlRegex =
     /(https?:\/\/.*\.(?:png|jpg|jpeg|jfif|gif|bmp|svg|webp))/gi;
   const videoUrlRegex = /(https?:\/\/.*\.(?:mp4|mov|ogg|webm|mkv|avi|m4v))/gi;
   const parts = content.split(
-    new RegExp(
-      `(?:${newlineRegex.source}|${wavlakeRegex.source}|${imageUrlRegex.source}|${videoUrlRegex.source})`,
-      "gi"
-    )
+    new RegExp(`(?:${newlineRegex.source}|${hyperlinkRegex.source})`, "gi")
   );
-  console.log(parts);
   const formattedContent = parts.map((part, index) => {
     if (part === undefined || part === "") {
       return null;
@@ -54,6 +51,14 @@ export const NoteContent = ({ content }: { content: string }) => {
             {part}
           </video>
         </Box>
+      );
+    }
+
+    if (part.match(hyperlinkRegex)) {
+      return (
+        <Link href={part} key={index} isExternal>
+          {part}
+        </Link>
       );
     }
 
