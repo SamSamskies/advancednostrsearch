@@ -32,6 +32,7 @@ export const NoteContent = ({ content }: { content: string }) => {
 
       return (
         <iframe
+          key={index}
           style={{ borderRadius: 12, borderWidth: 0 }}
           src={convertedUrl}
           width="100%"
