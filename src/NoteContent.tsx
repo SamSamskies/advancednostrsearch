@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { Image, Box } from "@chakra-ui/react";
 
 export const NoteContent = ({ content }: { content: string }) => {
+  const newlineRegex = /(\r?\n)/gi;
   const wavlakeRegex =
     /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
   const imageUrlRegex =
@@ -9,13 +10,18 @@ export const NoteContent = ({ content }: { content: string }) => {
   const videoUrlRegex = /(https?:\/\/.*\.(?:mp4|mov|ogg|webm|mkv|avi|m4v))/gi;
   const parts = content.split(
     new RegExp(
-      `(?:${wavlakeRegex.source}|${imageUrlRegex.source}|${videoUrlRegex.source})`,
+      `(?:${newlineRegex.source}|${wavlakeRegex.source}|${imageUrlRegex.source}|${videoUrlRegex.source})`,
       "gi"
     )
   );
+  console.log(parts);
   const formattedContent = parts.map((part, index) => {
-    if (part === undefined) {
+    if (part === undefined || part === "") {
       return null;
+    }
+
+    if (part.match(newlineRegex)) {
+      return <br key={index} />;
     }
 
     if (part.match(wavlakeRegex)) {
