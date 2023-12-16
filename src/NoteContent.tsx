@@ -2,15 +2,38 @@ import { Fragment } from "react";
 import { Image, Box } from "@chakra-ui/react";
 
 export const NoteContent = ({ content }: { content: string }) => {
+  const wavlakeRegex =
+    /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
   const imageUrlRegex =
     /(https?:\/\/.*\.(?:png|jpg|jpeg|jfif|gif|bmp|svg|webp))/gi;
   const videoUrlRegex = /(https?:\/\/.*\.(?:mp4|mov|ogg|webm|mkv|avi|m4v))/gi;
   const parts = content.split(
-    new RegExp(`(?:${imageUrlRegex.source}|${videoUrlRegex.source})`, "gi")
+    new RegExp(
+      `(?:${wavlakeRegex.source}|${imageUrlRegex.source}|${videoUrlRegex.source})`,
+      "gi"
+    )
   );
   const formattedContent = parts.map((part, index) => {
     if (part === undefined) {
       return null;
+    }
+
+    if (part.match(wavlakeRegex)) {
+      const convertedUrl = part.replace(
+        /(?:player\.|www\.)?wavlake\.com/,
+        "embed.wavlake.com"
+      );
+
+      return (
+        <iframe
+          style={{ borderRadius: 12, borderWidth: 0 }}
+          src={convertedUrl}
+          width="100%"
+          height="380"
+          loading="lazy"
+          title="WavLake Embed"
+        ></iframe>
+      );
     }
 
     if (part.match(imageUrlRegex)) {
