@@ -2,11 +2,18 @@ import { nip19, SimplePool } from "nostr-tools";
 
 export const formatCreateAtDate = (unixTimestamp: number) => {
   const date = new Date(unixTimestamp * 1000);
-  const options: Intl.DateTimeFormatOptions = { month: "short" };
-  const monthName = date.toLocaleString(navigator.language, options);
-  const day = date.getDate();
+  const formattedDate = date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const formattedTime = date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 
-  return `${monthName} ${day}`;
+  return `${formattedDate} @ ${formattedTime}`;
 };
 
 export const convertDateToUnixTimestamp = (date: string) =>
