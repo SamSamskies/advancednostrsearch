@@ -2,6 +2,7 @@
   "name": "advancednostrsearch",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@chakra-ui/react": "2.5.3",
     "@emotion/react": "11.10.6",
@@ -10,31 +11,49 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.33",
     "@types/react": "^18.2.7",
     "@types/react-dom": "^18.2.4",
     "copy-to-clipboard": "3.3.3",
     "framer-motion": "10.9.1",
     "loader-utils": "3.2.1",
-    "nostr-tools": "1.8.1",
+    "nostr-tools": "1.14.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-infinite-scroll-component": "^6.1.0",
-    "react-scripts": "^5.0.1",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "vite",
+    "build": "tsc && vite build",
+    "serve": "vite preview"
   },
   "eslintConfig": {
+    "parser": "@typescript-eslint/parser",
     "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+      "eslint:recommended",
+      "plugin:react/recommended",
+      "plugin:@typescript-eslint/recommended"
+    ],
+    "plugins": [
+      "react",
+      "react-hooks",
+      "@typescript-eslint"
+    ],
+    "env": {
+      "browser": true,
+      "es2021": true,
+      "node": true
+    },
+    "settings": {
+      "react": {
+        "version": "detect"
+      }
+    },
+    "rules": {
+      "react/react-in-jsx-scope": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off"
+    }
   },
   "browserslist": {
     "production": [
@@ -51,6 +70,17 @@
     ]
   },
   "devDependencies": {
-    "prettier": "2.8.8"
+    "@types/node": "^22.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "prettier": "2.8.8",
+    "vite": "^5.3.5",
+    "vite-plugin-eslint": "^1.8.1",
+    "vite-plugin-svgr": "^4.2.0",
+    "vite-tsconfig-paths": "^4.3.2"
   }
 }
