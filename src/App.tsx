@@ -1,9 +1,10 @@
 import {
   useState,
-  type FormEventHandler,
+  useEffect,
   type ChangeEvent,
   type SetStateAction,
   type Dispatch,
+  type FormEvent,
 } from "react";
 import {
   Container,
@@ -60,8 +61,8 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
-  const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
-    e.preventDefault();
+  const handleSubmit = (e?: FormEvent<HTMLFormElement>) => {
+    e?.preventDefault();
 
     let decodedNpub: string = "";
 
@@ -201,6 +202,14 @@ export default function App() {
     setToDate("");
     setEvents([]);
   };
+
+  useEffect(() => {
+    if (npub && query) {
+      handleSubmit();
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Container mt={16} pb={100}>
