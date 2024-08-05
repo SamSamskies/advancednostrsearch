@@ -1,4 +1,7 @@
-import { nip19, SimplePool, Filter, Event } from "nostr-tools";
+import { SimplePool } from "nostr-tools/pool";
+import * as nip19 from "nostr-tools/nip19";
+import type { Event } from "nostr-tools/core";
+import type { Filter } from "nostr-tools/filter";
 
 export const formatCreateAtDate = (unixTimestamp: number) => {
   const date = new Date(unixTimestamp * 1000);
@@ -65,6 +68,32 @@ const findOneFromRelays = async (
   }
 };
 
+export const findFromRelays = async (
+  relays: string[],
+  filter: Filter
+): Promise<Event[] | null> => {
+  let pool;
+
+  try {
+    pool = new SimplePool();
+
+    return await pool.querySync(relays, filter);
+  } catch (error) {
+    console.error(
+      error instanceof Error ? error.message : "Something went wrong :("
+    );
+    return null;
+  } finally {
+    if (pool) {
+      try {
+        pool.close(relays);
+      } catch {
+        // fail silently for errors that happen when closing the pool
+      }
+    }
+  }
+};
+
 const relaysCache: Record<string, string[]> = {};
 
 const getUserRelays = async (pubkey: string) => {
@@ -102,7 +131,7 @@ export const getUserReactionEventIds = async ({
   pubkey: string;
   since?: number;
   until?: number;
-}) => {
+}): Promise<string[]> => {
   const userRelays = await getUserRelays(pubkey);
   const backupRelays = [
     "wss://relay.nostr.band",
@@ -114,14 +143,12 @@ export const getUserReactionEventIds = async ({
 
   try {
     pool = new SimplePool();
-    const reactionEvents = await pool.list(relays, [
-      {
-        kinds: [7],
-        authors: [pubkey],
-        since,
-        until,
-      },
-    ]);
+    const reactionEvents = await pool.querySync(relays, {
+      kinds: [7],
+      authors: [pubkey],
+      since,
+      until,
+    });
 
     return reactionEvents
       .map(

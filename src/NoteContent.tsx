@@ -41,6 +41,7 @@ export const NoteContent = ({ content }: { content: string }) => {
     }
 
     if (part.match(imageUrlRegex)) {
+      // @ts-expect-error - typescript complains about this type being too complex ¯\_(ツ)_/
       return <Image key={index} src={part} alt={part} my={2} />;
     }
 

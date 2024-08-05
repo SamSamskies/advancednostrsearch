@@ -25,7 +25,9 @@ import {
   Radio,
   Stack,
 } from "@chakra-ui/react";
-import { relayInit, nip19, type Event } from "nostr-tools";
+import * as nip19 from "nostr-tools/nip19";
+import type { Event } from "nostr-tools/core";
+import type { Filter } from "nostr-tools/filter";
 import copy from "copy-to-clipboard";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { NoteContent } from "./NoteContent";
@@ -36,6 +38,7 @@ import {
   chunkArray,
   getUserReactionEventIds,
   getFollowedPubkeys,
+  findFromRelays,
 } from "./utils";
 
 const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "followed";
@@ -62,7 +65,7 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
-  const handleSubmit = (e?: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e?: FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
 
     let decodedNpub: string = "";
@@ -83,7 +86,9 @@ export default function App() {
     }
 
     setIsSearching(true);
-    const relay = relayInit("wss://relay.nostr.band");
+
+    const relays = ["wss://relay.nostr.band"];
+
     const fetchEvents = async () => {
       const defaultKindOneFilter = {
         kinds: [1],
@@ -99,7 +104,10 @@ export default function App() {
           until: defaultKindOneFilter.until,
         });
 
-        return relay.list([{ ...defaultKindOneFilter, ids: reactionEventIds }]);
+        return findFromRelays(relays, {
+          ...defaultKindOneFilter,
+          ids: reactionEventIds,
+        } as Filter);
       }
 
       const followedAuthorPubkeys = includeNotesFromFollowedUsers
@@ -111,43 +119,33 @@ export default function App() {
       const dedupedAuthors = Array.from(new Set(authors));
       const eventPromises = chunkArray(dedupedAuthors, 256).map(
         (authorsChunk) => {
-          return relay.list([
-            {
-              ...defaultKindOneFilter,
-              authors: authorsChunk,
-            },
-          ]);
+          return findFromRelays(relays, {
+            ...defaultKindOneFilter,
+            authors: authorsChunk,
+          } as Filter);
         }
       );
+
       const eventChunks = await Promise.all(eventPromises);
 
-      return eventChunks.flat().sort((a, b) => b.created_at - a.created_at);
+      return eventChunks
+        .flat()
+        .filter((event) => event !== null)
+        .sort((a, b) => b.created_at - a.created_at);
     };
 
-    relay.on("connect", async () => {
-      console.log(`connected to ${relay.url}`);
+    const events = (await fetchEvents()) ?? [];
 
-      const events = await fetchEvents();
+    if (events.length === 0) {
+      toast({
+        title: "no events found",
+        status: "info",
+      });
+    }
 
-      if (events.length === 0) {
-        toast({
-          title: "no events found",
-          status: "info",
-        });
-      }
-
-      setCurrentDataLength(Math.min(5, events.length));
-      setEvents(events);
-      setIsSearching(false);
-      relay.close();
-    });
-
-    relay.on("error", () => {
-      console.log(`failed to connect to ${relay.url}`);
-      setIsSearching(false);
-    });
-
-    relay.connect();
+    setCurrentDataLength(Math.min(5, events.length));
+    setEvents(events);
+    setIsSearching(false);
   };
 
   const updateUrl = (queryParams?: URLSearchParams) => {
