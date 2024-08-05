@@ -39,7 +39,7 @@ export const chunkArray = (array: string[], chunkSize: number) => {
   return chunkedArray;
 };
 
-const cachedUserRelays: Record<string, string[]> = {};
+const relaysCache: Record<string, string[]> = {};
 
 const getUserRelays = async (pubkey: string) => {
   let pool;
@@ -50,8 +50,8 @@ const getUserRelays = async (pubkey: string) => {
     "wss://relay.damus.io",
   ];
 
-  if (cachedUserRelays[pubkey]) {
-    return cachedUserRelays[pubkey];
+  if (relaysCache[pubkey]) {
+    return relaysCache[pubkey];
   }
 
   try {
@@ -65,7 +65,7 @@ const getUserRelays = async (pubkey: string) => {
       : [];
 
     if (relayUrls.length > 0) {
-      cachedUserRelays[pubkey] = relayUrls;
+      relaysCache[pubkey] = relayUrls;
     }
 
     return relayUrls;
@@ -135,7 +135,7 @@ export const getUserReactionEventIds = async ({
   }
 };
 
-const cachedFollowedPubkeys: Record<string, string[]> = {};
+const followedPubkeysCache: Record<string, string[]> = {};
 
 export const getFollowedPubkeys = async (pubkey: string) => {
   let pool;
@@ -145,8 +145,8 @@ export const getFollowedPubkeys = async (pubkey: string) => {
     "wss://relay.damus.io",
   ];
 
-  if (cachedFollowedPubkeys[pubkey]) {
-    return cachedFollowedPubkeys[pubkey];
+  if (followedPubkeysCache[pubkey]) {
+    return followedPubkeysCache[pubkey];
   }
 
   try {
@@ -159,7 +159,7 @@ export const getFollowedPubkeys = async (pubkey: string) => {
       contactListEvent?.tags.map(([, pubkey]) => pubkey) ?? [];
 
     if (followedPubkeys.length > 0) {
-      cachedFollowedPubkeys[pubkey] = followedPubkeys;
+      followedPubkeysCache[pubkey] = followedPubkeys;
     }
 
     return followedPubkeys;
