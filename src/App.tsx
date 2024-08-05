@@ -134,18 +134,29 @@ export default function App() {
         .sort((a, b) => b.created_at - a.created_at);
     };
 
-    const events = (await fetchEvents()) ?? [];
+    try {
+      const events = (await fetchEvents()) ?? [];
 
-    if (events.length === 0) {
+      if (events.length === 0) {
+        toast({
+          title: "no events found",
+          status: "info",
+        });
+      }
+
+      setCurrentDataLength(Math.min(5, events.length));
+      setEvents(events);
+    } catch (error) {
       toast({
-        title: "no events found",
-        status: "info",
+        title:
+          error instanceof Error ? error.message : "Something went wrong :(",
+        status: "error",
       });
+      setCurrentDataLength(0);
+      setEvents([]);
+    } finally {
+      setIsSearching(false);
     }
-
-    setCurrentDataLength(Math.min(5, events.length));
-    setEvents(events);
-    setIsSearching(false);
   };
 
   const updateUrl = (queryParams?: URLSearchParams) => {

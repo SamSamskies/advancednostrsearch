@@ -52,11 +52,6 @@ const findOneFromRelays = async (
     pool = new SimplePool();
 
     return await pool.get(relays, filter);
-  } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : "Something went wrong :("
-    );
-    return null;
   } finally {
     if (pool) {
       try {
@@ -71,18 +66,13 @@ const findOneFromRelays = async (
 export const findFromRelays = async (
   relays: string[],
   filter: Filter
-): Promise<Event[] | null> => {
+): Promise<Event[]> => {
   let pool;
 
   try {
     pool = new SimplePool();
 
     return await pool.querySync(relays, filter);
-  } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : "Something went wrong :("
-    );
-    return null;
   } finally {
     if (pool) {
       try {
@@ -139,36 +129,18 @@ export const getUserReactionEventIds = async ({
     "wss://relay.damus.io",
   ];
   const relays = userRelays.length > 0 ? userRelays : backupRelays;
-  let pool;
+  const reactionEvents = await findFromRelays(relays, {
+    kinds: [7],
+    authors: [pubkey],
+    since,
+    until,
+  });
 
-  try {
-    pool = new SimplePool();
-    const reactionEvents = await pool.querySync(relays, {
-      kinds: [7],
-      authors: [pubkey],
-      since,
-      until,
-    });
-
-    return reactionEvents
-      .map(
-        (event) => (event.tags.reverse().find(([key]) => key === "e") ?? [])[1]
-      )
-      .filter((id) => id !== undefined);
-  } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : "Something went wrong :("
-    );
-    return [];
-  } finally {
-    if (pool) {
-      try {
-        pool.close(relays);
-      } catch {
-        // fail silently for errors that happen when closing the pool
-      }
-    }
-  }
+  return reactionEvents
+    .map(
+      (event) => (event.tags.reverse().find(([key]) => key === "e") ?? [])[1]
+    )
+    .filter((id) => id !== undefined);
 };
 
 const followedPubkeysCache: Record<string, string[]> = {};
