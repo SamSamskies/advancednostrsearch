@@ -5,12 +5,12 @@ import type { Filter } from "nostr-tools/filter";
 
 export const formatCreateAtDate = (unixTimestamp: number) => {
   const date = new Date(unixTimestamp * 1000);
-  const formattedDate = date.toLocaleDateString(undefined, {
+  const formattedDate = date.toLocaleDateString([], {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
-  const formattedTime = date.toLocaleTimeString(undefined, {
+  const formattedTime = date.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,

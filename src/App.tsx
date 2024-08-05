@@ -130,7 +130,7 @@ export default function App() {
 
       return eventChunks
         .flat()
-        .filter((event) => event !== null)
+        .filter((event): event is Event => event !== null)
         .sort((a, b) => b.created_at - a.created_at);
     };
 
