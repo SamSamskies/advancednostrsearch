@@ -61,7 +61,7 @@ const getUserRelays = async (pubkey: string) => {
       authors: [pubkey],
     });
     const relayUrls = userRelayEvent
-      ? userRelayEvent.tags.map(([_, relay]) => relay)
+      ? userRelayEvent.tags.map(([, relay]) => relay)
       : [];
 
     if (relayUrls.length > 0) {
