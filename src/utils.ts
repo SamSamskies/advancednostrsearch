@@ -39,7 +39,7 @@ export const chunkArray = (array: string[], chunkSize: number) => {
   return chunkedArray;
 };
 
-const userRelayCache: Record<string, string[]> = {};
+const cachedUserRelays: Record<string, string[]> = {};
 
 const getUserRelays = async (pubkey: string) => {
   let pool;
@@ -50,8 +50,8 @@ const getUserRelays = async (pubkey: string) => {
     "wss://relay.damus.io",
   ];
 
-  if (userRelayCache[pubkey]) {
-    return userRelayCache[pubkey];
+  if (cachedUserRelays[pubkey]) {
+    return cachedUserRelays[pubkey];
   }
 
   try {
@@ -65,7 +65,7 @@ const getUserRelays = async (pubkey: string) => {
       : [];
 
     if (relayUrls.length > 0) {
-      userRelayCache[pubkey] = relayUrls;
+      cachedUserRelays[pubkey] = relayUrls;
     }
 
     return relayUrls;
@@ -119,6 +119,50 @@ export const getUserReactionEventIds = async ({
         (event) => (event.tags.reverse().find(([key]) => key === "e") ?? [])[1]
       )
       .filter((id) => id !== undefined);
+  } catch (error) {
+    console.error(
+      error instanceof Error ? error.message : "Something went wrong :("
+    );
+    return [];
+  } finally {
+    if (pool) {
+      try {
+        pool.close(relays);
+      } catch {
+        // fail silently for errors that happen when closing the pool
+      }
+    }
+  }
+};
+
+const cachedFollowedPubkeys: Record<string, string[]> = {};
+
+export const getFollowedPubkeys = async (pubkey: string) => {
+  let pool;
+  const relays = [
+    "wss://relay.nostr.band",
+    "wss://nostr.wine",
+    "wss://relay.damus.io",
+  ];
+
+  if (cachedFollowedPubkeys[pubkey]) {
+    return cachedFollowedPubkeys[pubkey];
+  }
+
+  try {
+    pool = new SimplePool();
+    const contactListEvent = await pool.get(relays, {
+      kinds: [3],
+      authors: [pubkey],
+    });
+    const followedPubkeys =
+      contactListEvent?.tags.map(([, pubkey]) => pubkey) ?? [];
+
+    if (followedPubkeys.length > 0) {
+      cachedFollowedPubkeys[pubkey] = followedPubkeys;
+    }
+
+    return followedPubkeys;
   } catch (error) {
     console.error(
       error instanceof Error ? error.message : "Something went wrong :("

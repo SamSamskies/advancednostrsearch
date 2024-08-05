@@ -35,6 +35,7 @@ import {
   decodeNpub,
   chunkArray,
   getUserReactionEventIds,
+  getFollowedPubkeys,
 } from "./utils";
 
 const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "followed";
@@ -101,18 +102,9 @@ export default function App() {
         return relay.list([{ ...defaultKindOneFilter, ids: reactionEventIds }]);
       }
 
-      let followedAuthorPubkeys: string[] = [];
-
-      if (includeNotesFromFollowedUsers) {
-        const contactListEvent = await relay.get({
-          kinds: [3],
-          authors: [decodedNpub],
-        });
-
-        followedAuthorPubkeys =
-          contactListEvent?.tags.map(([_, pubkey]) => pubkey) ?? [];
-      }
-
+      const followedAuthorPubkeys = includeNotesFromFollowedUsers
+        ? await getFollowedPubkeys(decodedNpub)
+        : [];
       const authors = includeNotesFromFollowedUsers
         ? [...followedAuthorPubkeys, decodedNpub]
         : [decodedNpub];
