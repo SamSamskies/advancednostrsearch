@@ -1,4 +1,4 @@
-import { nip19, SimplePool } from "nostr-tools";
+import { nip19, SimplePool, Filter, Event } from "nostr-tools";
 
 export const formatCreateAtDate = (unixTimestamp: number) => {
   const date = new Date(unixTimestamp * 1000);
@@ -39,10 +39,35 @@ export const chunkArray = (array: string[], chunkSize: number) => {
   return chunkedArray;
 };
 
+const findOneFromRelays = async (
+  relays: string[],
+  filter: Filter
+): Promise<Event | null> => {
+  let pool;
+
+  try {
+    pool = new SimplePool();
+
+    return await pool.get(relays, filter);
+  } catch (error) {
+    console.error(
+      error instanceof Error ? error.message : "Something went wrong :("
+    );
+    return null;
+  } finally {
+    if (pool) {
+      try {
+        pool.close(relays);
+      } catch {
+        // fail silently for errors that happen when closing the pool
+      }
+    }
+  }
+};
+
 const relaysCache: Record<string, string[]> = {};
 
 const getUserRelays = async (pubkey: string) => {
-  let pool;
   const relays = [
     "wss://relay.nostr.band",
     "wss://purplepag.es",
@@ -54,35 +79,19 @@ const getUserRelays = async (pubkey: string) => {
     return relaysCache[pubkey];
   }
 
-  try {
-    pool = new SimplePool();
-    const userRelayEvent = await pool.get(relays, {
-      kinds: [10002],
-      authors: [pubkey],
-    });
-    const relayUrls = userRelayEvent
-      ? userRelayEvent.tags.map(([, relay]) => relay)
-      : [];
+  const userRelayEvent = await findOneFromRelays(relays, {
+    kinds: [10002],
+    authors: [pubkey],
+  });
+  const relayUrls = userRelayEvent
+    ? userRelayEvent.tags.map(([, relay]) => relay)
+    : [];
 
-    if (relayUrls.length > 0) {
-      relaysCache[pubkey] = relayUrls;
-    }
-
-    return relayUrls;
-  } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : "Something went wrong :("
-    );
-    return [];
-  } finally {
-    if (pool) {
-      try {
-        pool.close(relays);
-      } catch {
-        // fail silently for errors that happen when closing the pool
-      }
-    }
+  if (relayUrls.length > 0) {
+    relaysCache[pubkey] = relayUrls;
   }
+
+  return relayUrls;
 };
 
 export const getUserReactionEventIds = async ({
@@ -138,7 +147,6 @@ export const getUserReactionEventIds = async ({
 const followedPubkeysCache: Record<string, string[]> = {};
 
 export const getFollowedPubkeys = async (pubkey: string) => {
-  let pool;
   const relays = [
     "wss://relay.nostr.band",
     "wss://nostr.wine",
@@ -149,32 +157,16 @@ export const getFollowedPubkeys = async (pubkey: string) => {
     return followedPubkeysCache[pubkey];
   }
 
-  try {
-    pool = new SimplePool();
-    const contactListEvent = await pool.get(relays, {
-      kinds: [3],
-      authors: [pubkey],
-    });
-    const followedPubkeys =
-      contactListEvent?.tags.map(([, pubkey]) => pubkey) ?? [];
+  const contactListEvent = await findOneFromRelays(relays, {
+    kinds: [3],
+    authors: [pubkey],
+  });
+  const followedPubkeys =
+    contactListEvent?.tags.map(([, pubkey]) => pubkey) ?? [];
 
-    if (followedPubkeys.length > 0) {
-      followedPubkeysCache[pubkey] = followedPubkeys;
-    }
-
-    return followedPubkeys;
-  } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : "Something went wrong :("
-    );
-    return [];
-  } finally {
-    if (pool) {
-      try {
-        pool.close(relays);
-      } catch {
-        // fail silently for errors that happen when closing the pool
-      }
-    }
+  if (followedPubkeys.length > 0) {
+    followedPubkeysCache[pubkey] = followedPubkeys;
   }
+
+  return followedPubkeys;
 };
