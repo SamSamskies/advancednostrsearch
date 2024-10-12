@@ -40,6 +40,7 @@ import {
   getFollowedPubkeys,
   findFromRelays,
 } from "./utils";
+import { init as initNostrLogin } from "nostr-login";
 
 const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "followed";
 const INCLUDE_ONLY_AUTHOR_QUERY_PARAM = "onlyAuthor";
@@ -48,6 +49,9 @@ const INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM =
 
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
+  const [willSetNpubOnLogin, setWillSetNpubOnLogin] = useState(
+    !queryParams.get("npub")
+  );
   const [isSearching, setIsSearching] = useState(false);
   const [npub, setNpub] = useState<string>(queryParams.get("npub") ?? "");
   const [include, setInclude] = useState<string>(
@@ -203,6 +207,36 @@ export default function App() {
     setToDate("");
     setEvents([]);
   };
+
+  useEffect(() => {
+    const handleAuthEvent = (event: CustomEvent) => {
+      if (event.detail.type === "login") {
+        const npub = nip19.npubEncode(event.detail.pubkey);
+
+        setWillSetNpubOnLogin(true);
+
+        if (!willSetNpubOnLogin) {
+          return;
+        }
+
+        updateQueryParams("npub", npub);
+        setNpub(npub);
+      }
+    };
+
+    document.addEventListener("nlAuth", handleAuthEvent as EventListener);
+
+    return () => {
+      document.removeEventListener("nlAuth", handleAuthEvent as EventListener);
+    };
+  }, [willSetNpubOnLogin]);
+
+  useEffect(() => {
+    initNostrLogin({
+      darkMode: false,
+      methods: ["extension", "readOnly"],
+    });
+  }, []);
 
   useEffect(() => {
     if (npub && query) {
