@@ -69,6 +69,7 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const toast = useToast();
+  const relays = ["wss://relay.nostr.band"];
   const handleSubmit = async (e?: FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
 
@@ -90,8 +91,6 @@ export default function App() {
     }
 
     setIsSearching(true);
-
-    const relays = ["wss://relay.nostr.band"];
 
     const fetchEvents = async () => {
       const defaultKindOneFilter = {
@@ -324,7 +323,7 @@ export default function App() {
         {events
           .slice(0, currentDataLength)
           .map(({ id, content, created_at }) => {
-            const noteId = nip19.noteEncode(id);
+            const nevent = nip19.neventEncode({ id, relays });
 
             return (
               <Card key={id} p={4} mt={8}>
@@ -333,7 +332,7 @@ export default function App() {
                 </Text>
                 <NoteContent content={content} />
                 <HStack mt={4} justifyContent="right">
-                  <Link href={`https://njump.me/${noteId}`} isExternal>
+                  <Link href={`https://njump.me/${nevent}`} isExternal>
                     <Button>Open</Button>
                   </Link>
                   <Button
@@ -350,7 +349,7 @@ export default function App() {
                           </Box>
                         ),
                       });
-                      copy(noteId);
+                      copy(nevent);
                     }}
                   >
                     Copy ID
