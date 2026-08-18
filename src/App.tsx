@@ -223,6 +223,8 @@ export default function App() {
         found = mergeLocatedEvents(eventChunks.flat());
       }
 
+      const relayCount = found.length;
+
       if (hasImage || hasVideo) {
         found = found.filter((note) =>
           matchesMediaFilters(note, hasImage, hasVideo)
@@ -231,7 +233,7 @@ export default function App() {
 
       if (found.length === 0) {
         let text = "No notes found.";
-        if (hasImage || hasVideo) {
+        if ((hasImage || hasVideo) && relayCount > 0) {
           text =
             fromDate || toDate
               ? "No matching notes in this range (latest 200). Try a different date range."
