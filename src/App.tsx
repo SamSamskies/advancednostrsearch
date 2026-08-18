@@ -54,11 +54,20 @@ import {
   NOTE_SEARCH_RELAYS,
   type LocatedEvent,
 } from "./nostr";
-
-const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "followed";
-const INCLUDE_ONLY_AUTHOR_QUERY_PARAM = "onlyAuthor";
-const INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM =
-  "onlyNotesAuthorReactedTo";
+import {
+  INCLUDE_FOLLOWED_USERS_QUERY_PARAM,
+  INCLUDE_ONLY_AUTHOR_QUERY_PARAM,
+  INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM,
+  clearRecents,
+  loadRecents,
+  pubkeyFromNpub,
+  saveRecent,
+  toQueryString,
+  withAuthorNames,
+  type RecentSearch,
+  type SearchFields,
+} from "./recent-searches";
+import { RecentsDrawer } from "./RecentsDrawer";
 
 const queryFlagEnabled = (value: string | null) => value === "1";
 
@@ -164,13 +173,10 @@ export default function App() {
     text: string;
     tone: "error" | "info";
   } | null>(null);
+  const [recents, setRecents] = useState<RecentSearch[]>(loadRecents);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const searchedRef = useRef(false);
-
-  const includeNotesFromFollowedUsers =
-    include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM;
-  const includeOnlyNotesAuthorReactedTo =
-    include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM;
 
   const updateUrl = (params?: URLSearchParams) => {
     window.history.replaceState(
@@ -180,6 +186,22 @@ export default function App() {
         ? `${window.location.pathname}?${params.toString()}`
         : window.location.pathname
     );
+  };
+
+  const writeFieldsToUrl = (fields: SearchFields) => {
+    const query = toQueryString(fields);
+    updateUrl(query ? new URLSearchParams(query) : undefined);
+  };
+
+  const applyFields = (fields: SearchFields) => {
+    setNpub(fields.npub);
+    setInclude(fields.include);
+    setQuery(fields.query);
+    setFromDate(fields.fromDate);
+    setToDate(fields.toDate);
+    setHasImage(fields.hasImage);
+    setHasVideo(fields.hasVideo);
+    writeFieldsToUrl(fields);
   };
 
   const updateQueryParams = (key: string, value: string) => {
@@ -219,20 +241,39 @@ export default function App() {
       set(checked);
     };
 
-  const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event?: FormEvent<HTMLFormElement>,
+    fieldsOverride?: SearchFields
+  ) => {
     event?.preventDefault();
 
-    const rawIdentity = event
-      ? String(new FormData(event.currentTarget).get("identity") ?? npub)
-      : npub;
+    const fields: SearchFields = {
+      ...(fieldsOverride ?? {
+        npub: event
+          ? String(new FormData(event.currentTarget).get("identity") ?? npub)
+          : npub,
+        include,
+        query,
+        fromDate,
+        toDate,
+        hasImage,
+        hasVideo,
+      }),
+    };
+
+    const includeNotesFromFollowedUsers =
+      fields.include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM;
+    const includeOnlyNotesAuthorReactedTo =
+      fields.include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM;
 
     setIsSearching(true);
     setMessage(null);
 
     try {
-      const identity = await resolveSubmittedIdentity(rawIdentity);
+      const identity = await resolveSubmittedIdentity(fields.npub);
       const encoded = nip19.npubEncode(identity.pubkey);
-      if (encoded !== npub) {
+      if (encoded !== fields.npub) {
+        fields.npub = encoded;
         updateQueryParams("npub", encoded);
         setNpub(encoded);
       }
@@ -241,12 +282,12 @@ export default function App() {
         kinds: [1],
         limit: NOTE_LIMIT,
       };
-      if (query) defaultKindOneFilter.search = query;
-      if (fromDate) {
-        defaultKindOneFilter.since = convertDateToUnixTimestamp(fromDate);
+      if (fields.query) defaultKindOneFilter.search = fields.query;
+      if (fields.fromDate) {
+        defaultKindOneFilter.since = convertDateToUnixTimestamp(fields.fromDate);
       }
-      if (toDate) {
-        defaultKindOneFilter.until = convertDateToUnixTimestamp(toDate);
+      if (fields.toDate) {
+        defaultKindOneFilter.until = convertDateToUnixTimestamp(fields.toDate);
       }
 
       let found: LocatedEvent[] = [];
@@ -261,7 +302,7 @@ export default function App() {
         if (reactionEventIds.length > 0) {
           const userRelays = await getUserRelays(identity);
           const relays = [
-            ...(query ? NOTE_SEARCH_RELAYS : []),
+            ...(fields.query ? NOTE_SEARCH_RELAYS : []),
             ...userRelays,
             ...DEFAULT_RELAYS,
           ];
@@ -280,8 +321,8 @@ export default function App() {
           ? [...followedAuthorPubkeys, identity.pubkey]
           : [identity.pubkey];
         const dedupedAuthors = Array.from(new Set(authors));
-        const userRelays = query ? [] : await getUserRelays(identity);
-        const relays = query
+        const userRelays = fields.query ? [] : await getUserRelays(identity);
+        const relays = fields.query
           ? NOTE_SEARCH_RELAYS
           : userRelays.length > 0
             ? [...userRelays, ...DEFAULT_RELAYS]
@@ -301,23 +342,23 @@ export default function App() {
 
       const relayCount = found.length;
 
-      if (hasImage || hasVideo) {
+      if (fields.hasImage || fields.hasVideo) {
         found = found.filter((note) =>
-          matchesMediaFilters(note, hasImage, hasVideo)
+          matchesMediaFilters(note, fields.hasImage, fields.hasVideo)
         );
       }
 
       if (found.length === 0) {
         let text = "No notes found.";
-        if ((hasImage || hasVideo) && relayCount > 0) {
+        if ((fields.hasImage || fields.hasVideo) && relayCount > 0) {
           const media =
-            hasImage && hasVideo
+            fields.hasImage && fields.hasVideo
               ? "image or video"
-              : hasImage
+              : fields.hasImage
                 ? "image"
                 : "video";
           text =
-            fromDate || toDate
+            fields.fromDate || fields.toDate
               ? `None of the notes in this range (latest ${NOTE_LIMIT}) have a detectable ${media}.`
               : `None of the latest ${NOTE_LIMIT} notes have a detectable ${media}.`;
         }
@@ -326,6 +367,12 @@ export default function App() {
 
       setCurrentDataLength(Math.min(5, found.length));
       setEvents(found);
+      setRecents(
+        saveRecent({
+          ...fields,
+          authorName: profiles[identity.pubkey.toLowerCase()]?.displayName,
+        })
+      );
     } catch (error) {
       setMessage({
         text:
@@ -355,11 +402,62 @@ export default function App() {
     setMessage(null);
   };
 
+  const handleRestoreRecent = (recent: RecentSearch) => {
+    const fields: SearchFields = {
+      npub: recent.npub,
+      include: recent.include,
+      query: recent.query,
+      fromDate: recent.fromDate,
+      toDate: recent.toDate,
+      hasImage: recent.hasImage,
+      hasVideo: recent.hasVideo,
+    };
+    applyFields(fields);
+    setDrawerOpen(false);
+    void handleSubmit(undefined, fields);
+  };
+
+  const handleClearRecents = () => {
+    setRecents(clearRecents());
+  };
+
   useEffect(() => {
     if (searchedRef.current || !npub || !query) return;
     searchedRef.current = true;
     void handleSubmit();
   }, []);
+
+  useEffect(() => {
+    const identities = recents
+      .filter((recent) => !recent.authorName)
+      .map((recent) => pubkeyFromNpub(recent.npub))
+      .filter((pubkey): pubkey is string => pubkey !== null)
+      .map((pubkey) => ({ pubkey }));
+    if (identities.length === 0) return;
+
+    let cancelled = false;
+    void getKind0Profiles(identities).then((found) => {
+      if (cancelled) return;
+      setProfiles((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [pubkey, profile] of Object.entries(found)) {
+          if (prev[pubkey] === profile) continue;
+          next[pubkey] = profile;
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recents]);
+
+  useEffect(() => {
+    setRecents((prev) => withAuthorNames(prev, profiles));
+  }, [profiles]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -410,6 +508,14 @@ export default function App() {
   }, [events, currentDataLength]);
 
   return (
+    <RecentsDrawer
+      recents={recents}
+      open={drawerOpen}
+      isSearching={isSearching}
+      onOpenChange={setDrawerOpen}
+      onRestore={handleRestoreRecent}
+      onClear={handleClearRecents}
+    >
     <main className="page">
       <header className="hero">
         <h1>Advanced Nostr Search</h1>
@@ -594,5 +700,6 @@ export default function App() {
         />
       ) : null}
     </main>
+    </RecentsDrawer>
   );
 }
