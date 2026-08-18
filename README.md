@@ -1,14 +1,12 @@
 # Advanced Nostr Search
 
-A tool to help you search your favorite Nostr accounts!
+A tool to help you search your favorite Nostr accounts.
 
 ## Installation
 
-In the project directory, you can run:
+```bash
+npm ci
+npm start
+```
 
-### `npm install`
-
-### `npm start`
-
-Open [http://localhost:3000](http://localhost:3000) to view app in the browser.
-
+Open the local URL Vite prints (usually http://localhost:5173).
