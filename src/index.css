@@ -265,8 +265,17 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
 .include-set {
   margin: 0;
+  min-width: 0;
+  min-inline-size: 0;
   padding: 0.85rem 1rem 1rem;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -284,6 +293,7 @@ input:focus-visible {
   display: flex;
   gap: 0.65rem;
   align-items: flex-start;
+  min-width: 0;
   line-height: 1.35;
   cursor: pointer;
 }
@@ -554,6 +564,7 @@ a.open-in-link:focus-visible {
 
 @media (max-width: 560px) {
   .date-row,
+  .filter-row,
   .actions {
     grid-template-columns: 1fr;
     flex-direction: column;
