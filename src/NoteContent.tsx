@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   classifyUrl,
   hyperlinkRegex,
@@ -13,11 +13,58 @@ import {
   nostrUriRegex,
   parseNostrEntity,
 } from "./mentions";
-import type { Kind0Profile } from "./identity";
+import { isSafeHttpUrl, type Kind0Profile } from "./identity";
 import type { OpenInKind } from "./nostr-clients";
 
 const wavlakeRegex =
   /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile|shows)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
+
+/** NIP-30 shortcodes: `:name:` with alphanumeric, hyphen, or underscore. */
+const customEmojiRegex = /(:[A-Za-z0-9_-]+:)/g;
+const SHORTCODE = /^[A-Za-z0-9_-]+$/;
+
+function parseEmojiTags(tags: string[][]): Map<string, string> {
+  const emojis = new Map<string, string>();
+  for (const tag of tags) {
+    if (tag[0] !== "emoji") continue;
+    const shortcode = tag[1]?.trim();
+    const url = tag[2]?.trim();
+    if (!shortcode || !SHORTCODE.test(shortcode)) continue;
+    if (!url || !isSafeHttpUrl(url)) continue;
+    emojis.set(shortcode.toLowerCase(), url);
+  }
+  return emojis;
+}
+
+function CustomEmoji({
+  shortcode,
+  src,
+}: {
+  shortcode: string;
+  src: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  const token = `:${shortcode}:`;
+  if (failed) return token;
+
+  return (
+    <img
+      className="note-emoji"
+      src={src}
+      alt={token}
+      title={token}
+      referrerPolicy="no-referrer"
+      decoding="async"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 export const NoteContent = ({
   content,
@@ -30,9 +77,12 @@ export const NoteContent = ({
   profiles?: Record<string, Kind0Profile>;
   onOpen?: (kind: OpenInKind, code: string) => void;
 }) => {
+  const emojis = parseEmojiTags(tags);
   const parts = content.split(
     new RegExp(
-      `(?:${newlineRegex.source}|${nostrUriRegex.source}|${hyperlinkRegex.source})`,
+      `(?:${newlineRegex.source}|${nostrUriRegex.source}|${hyperlinkRegex.source}${
+        emojis.size > 0 ? `|${customEmojiRegex.source}` : ""
+      })`,
       "gi"
     )
   );
@@ -91,6 +141,20 @@ export const NoteContent = ({
               src={convertedUrl}
               loading="lazy"
               title="WavLake Embed"
+            />
+          );
+        }
+
+        const emojiMatch = /^:([A-Za-z0-9_-]+):$/.exec(part);
+        const emojiUrl = emojiMatch
+          ? emojis.get(emojiMatch[1].toLowerCase())
+          : undefined;
+        if (emojiUrl && emojiMatch) {
+          return (
+            <CustomEmoji
+              key={index}
+              shortcode={emojiMatch[1]}
+              src={emojiUrl}
             />
           );
         }

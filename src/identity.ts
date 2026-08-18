@@ -161,7 +161,7 @@ function isPrivateOrLocalHostname(hostname: string): boolean {
   return false;
 }
 
-function isSafeHttpUrl(value: string): boolean {
+export function isSafeHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" && url.protocol !== "http:") return false;

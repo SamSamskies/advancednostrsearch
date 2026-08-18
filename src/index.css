@@ -428,6 +428,16 @@ input:focus-visible {
   text-decoration: underline;
 }
 
+.note-emoji {
+  display: inline-block;
+  height: 1.35em;
+  width: auto;
+  max-width: 1.8em;
+  margin: 0 0.05em;
+  object-fit: contain;
+  vertical-align: -0.25em;
+}
+
 .note-image,
 .note-video,
 .note-embed {
