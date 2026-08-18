@@ -93,9 +93,9 @@ export function loadRecents(): RecentSearch[] {
 }
 
 export function saveRecent(
-  fields: SearchFields & { authorName?: string }
+  fields: SearchFields & { authorName?: string },
+  recents: RecentSearch[]
 ): RecentSearch[] {
-  const recents = loadRecents();
   const previous = recents.find((item) => sameSearch(item, fields));
   const next: RecentSearch = {
     npub: fields.npub.trim(),

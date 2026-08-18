@@ -366,11 +366,14 @@ export default function App() {
 
       setCurrentDataLength(Math.min(5, found.length));
       setEvents(found);
-      setRecents(
-        saveRecent({
-          ...fields,
-          authorName: profiles[identity.pubkey.toLowerCase()]?.displayName,
-        })
+      setRecents((prev) =>
+        saveRecent(
+          {
+            ...fields,
+            authorName: profiles[identity.pubkey.toLowerCase()]?.displayName,
+          },
+          prev
+        )
       );
     } catch (error) {
       setMessage({
