@@ -136,18 +136,6 @@ export function collectMediaKinds(note: NoteMedia): Set<MediaKind> {
     if (kind) kinds.add(kind);
   }
 
-  for (const entry of parseImeta(tags)) {
-    if (entry.mime) {
-      const kind = mimeKind(entry.mime);
-      if (kind) kinds.add(kind);
-      continue;
-    }
-    if (entry.url) {
-      const kind = classifyUrl(entry.url, tags);
-      if (kind) kinds.add(kind);
-    }
-  }
-
   return kinds;
 }
 
