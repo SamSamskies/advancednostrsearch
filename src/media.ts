@@ -125,6 +125,9 @@ export function classifyUrl(url: string, tags: string[][] = []): MediaKind | nul
     if (entry.mime) {
       const fromMime = mimeKind(entry.mime);
       if (fromMime) return fromMime;
+      // Authoritative non-image/video MIME (e.g. audio/mpeg): do not guess via
+      // extension or the extensionless blossom heuristic.
+      return null;
     }
   }
 
