@@ -305,7 +305,7 @@ export default function App() {
               checked={include === INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
               onChange={(event) => handleIncludeChange(event.target.value)}
             />
-            <span>Include only author notes</span>
+            <span>Author notes only</span>
           </label>
           <label className="radio-row">
             <input
@@ -315,7 +315,7 @@ export default function App() {
               checked={include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}
               onChange={(event) => handleIncludeChange(event.target.value)}
             />
-            <span>Include only notes author has reacted to</span>
+            <span>Notes the author reacted to</span>
           </label>
           <label className="radio-row">
             <input
@@ -325,10 +325,7 @@ export default function App() {
               checked={include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
               onChange={(event) => handleIncludeChange(event.target.value)}
             />
-            <span>
-              Include notes from author as well as notes from users that the
-              author follows
-            </span>
+            <span>Author and people they follow</span>
           </label>
         </fieldset>
 
