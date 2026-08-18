@@ -367,7 +367,13 @@ export async function getKind0Profiles(
   const found: Record<string, Kind0Profile> = {};
   for (const pubkey of byPubkey.keys()) {
     const profile = kind0Cache.get(pubkey);
-    if (profile) found[pubkey] = profile;
+    if (profile) {
+      found[pubkey] = profile;
+      continue;
+    }
+    // Drop misses so a later search can retry after a relay timeout.
+    kind0Cache.delete(pubkey);
+    kind0TriedHints.delete(pubkey);
   }
   return found;
 }
