@@ -233,18 +233,43 @@ export async function findNotes(
 
 const kind0Cache = new Map<string, Kind0Profile | null>();
 const kind0Inflight = new Map<string, Promise<void>>();
+const kind0TriedHints = new Map<string, Set<string>>();
+const PROFILE_METADATA_RELAY_SET = new Set(PROFILE_METADATA_RELAYS);
+
+function extraProfileHints(relayHints: string[]): string[] {
+  return dedupeRelays(relayHints).filter(
+    (url) => !PROFILE_METADATA_RELAY_SET.has(url)
+  );
+}
+
+function rememberTriedHints(pubkey: string, relayHints: string[]) {
+  const tried = kind0TriedHints.get(pubkey) ?? new Set();
+  for (const url of extraProfileHints(relayHints)) tried.add(url);
+  kind0TriedHints.set(pubkey, tried);
+}
+
+function needsKind0Fetch(pubkey: string, relayHints: string[]): boolean {
+  if (kind0Cache.get(pubkey)) return false;
+  if (!kind0Cache.has(pubkey)) return true;
+  const tried = kind0TriedHints.get(pubkey);
+  return extraProfileHints(relayHints).some((url) => !tried?.has(url));
+}
 
 function profileRelaysFor(identities: { relayHints: string[] }[]): string[] {
   const base = dedupeRelays(PROFILE_METADATA_RELAYS);
-  const extra = dedupeRelays(identities.flatMap((identity) => identity.relayHints))
-    .filter((url) => !base.includes(url))
-    .slice(0, MAX_PROFILE_HINT_RELAYS);
+  const extra = extraProfileHints(
+    identities.flatMap((identity) => identity.relayHints)
+  ).slice(0, MAX_PROFILE_HINT_RELAYS);
   return [...base, ...extra];
 }
 
 async function loadKind0Profiles(
   identities: { pubkey: string; relayHints: string[] }[]
 ): Promise<void> {
+  for (const { pubkey, relayHints } of identities) {
+    rememberTriedHints(pubkey, relayHints);
+  }
+
   const relays = profileRelaysFor(identities);
   const events: LocatedEvent[] = [];
 
@@ -290,28 +315,32 @@ export async function getKind0Profiles(
     byPubkey.set(pubkey, relays);
   }
 
-  const toFetch: { pubkey: string; relayHints: string[] }[] = [];
-  const waitFor: Promise<void>[] = [];
+  for (;;) {
+    const toFetch: { pubkey: string; relayHints: string[] }[] = [];
+    const waitFor: Promise<void>[] = [];
 
-  for (const [pubkey, relayHints] of byPubkey) {
-    if (kind0Cache.has(pubkey)) continue;
-    const pending = kind0Inflight.get(pubkey);
-    if (pending) {
-      waitFor.push(pending);
-      continue;
+    for (const [pubkey, relayHints] of byPubkey) {
+      if (!needsKind0Fetch(pubkey, relayHints)) continue;
+      const pending = kind0Inflight.get(pubkey);
+      if (pending) {
+        waitFor.push(pending);
+        continue;
+      }
+      toFetch.push({ pubkey, relayHints });
     }
-    toFetch.push({ pubkey, relayHints });
-  }
 
-  if (toFetch.length > 0) {
-    const fetchPromise = loadKind0Profiles(toFetch).finally(() => {
-      for (const { pubkey } of toFetch) kind0Inflight.delete(pubkey);
-    });
-    for (const { pubkey } of toFetch) kind0Inflight.set(pubkey, fetchPromise);
-    waitFor.push(fetchPromise);
-  }
+    if (toFetch.length === 0 && waitFor.length === 0) break;
 
-  if (waitFor.length > 0) await Promise.all(waitFor);
+    if (toFetch.length > 0) {
+      const fetchPromise = loadKind0Profiles(toFetch).finally(() => {
+        for (const { pubkey } of toFetch) kind0Inflight.delete(pubkey);
+      });
+      for (const { pubkey } of toFetch) kind0Inflight.set(pubkey, fetchPromise);
+      waitFor.push(fetchPromise);
+    }
+
+    await Promise.all(waitFor);
+  }
 
   const found: Record<string, Kind0Profile> = {};
   for (const pubkey of byPubkey.keys()) {
