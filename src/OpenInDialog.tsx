@@ -1,17 +1,16 @@
 import { useEffect, useId, useRef } from "react";
-import type { LocatedEvent } from "./nostr";
 import {
   clientHref,
   clientsForPlatform,
   detectClientPlatform,
-  encodeNevent,
   isWebClientHref,
   type OpenInKind,
 } from "./nostr-clients";
 
-export type OpenInTarget =
-  | { kind: "note"; note: LocatedEvent }
-  | { kind: "profile"; code: string };
+export type OpenInTarget = {
+  kind: OpenInKind;
+  code: string;
+};
 
 export function NoteMenuIcon() {
   return (
@@ -23,14 +22,6 @@ export function NoteMenuIcon() {
   );
 }
 
-function targetCode(target: OpenInTarget): string {
-  try {
-    return target.kind === "note" ? encodeNevent(target.note) : target.code;
-  } catch {
-    return "";
-  }
-}
-
 export function OpenInDialog({
   target,
   onClose,
@@ -40,8 +31,7 @@ export function OpenInDialog({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const code = targetCode(target);
-  const kind: OpenInKind = target.kind;
+  const { kind, code } = target;
   const clients = clientsForPlatform(detectClientPlatform());
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;

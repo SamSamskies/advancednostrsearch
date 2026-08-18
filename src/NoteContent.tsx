@@ -6,13 +6,15 @@ import {
   normalizeHttpUrl,
 } from "./media";
 import {
-  mentionLabel,
-  mentionRegex,
-  njumpProfileHref,
-  parseMention,
   isUnmodifiedLeftClick,
+  mentionLabel,
+  njumpHref,
+  noteRefLabel,
+  nostrUriRegex,
+  parseNostrEntity,
 } from "./mentions";
 import type { Kind0Profile } from "./identity";
+import type { OpenInKind } from "./nostr-clients";
 
 const wavlakeRegex =
   /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile|shows)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
@@ -21,16 +23,16 @@ export const NoteContent = ({
   content,
   tags = [],
   profiles = {},
-  onOpenProfile,
+  onOpen,
 }: {
   content: string;
   tags?: string[][];
   profiles?: Record<string, Kind0Profile>;
-  onOpenProfile?: (code: string) => void;
+  onOpen?: (kind: OpenInKind, code: string) => void;
 }) => {
   const parts = content.split(
     new RegExp(
-      `(?:${newlineRegex.source}|${mentionRegex.source}|${hyperlinkRegex.source})`,
+      `(?:${newlineRegex.source}|${nostrUriRegex.source}|${hyperlinkRegex.source})`,
       "gi"
     )
   );
@@ -46,26 +48,32 @@ export const NoteContent = ({
           return <br key={index} />;
         }
 
-        const mention = parseMention(part);
-        if (mention) {
+        const entity = parseNostrEntity(part);
+        if (entity) {
+          const kind: OpenInKind = entity.type === "profile" ? "profile" : "note";
+          const label =
+            entity.type === "profile"
+              ? mentionLabel(
+                  entity.pubkey,
+                  profiles[entity.pubkey]?.displayName
+                )
+              : noteRefLabel(entity.code);
+
           return (
             <a
               key={index}
               className="note-mention"
-              href={njumpProfileHref(mention.code)}
+              href={njumpHref(entity.code)}
               target="_blank"
               rel="noreferrer"
               onClick={(event) => {
-                if (!onOpenProfile) return;
+                if (!onOpen) return;
                 if (!isUnmodifiedLeftClick(event)) return;
                 event.preventDefault();
-                onOpenProfile(mention.code);
+                onOpen(kind, entity.code);
               }}
             >
-              {mentionLabel(
-                mention.pubkey,
-                profiles[mention.pubkey]?.displayName
-              )}
+              {label}
             </a>
           );
         }

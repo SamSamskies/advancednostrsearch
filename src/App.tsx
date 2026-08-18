@@ -21,7 +21,7 @@ import {
   addIdentities,
   collectMentionIdentities,
   isUnmodifiedLeftClick,
-  njumpProfileHref,
+  njumpHref,
   profileLabel,
 } from "./mentions";
 import {
@@ -36,6 +36,7 @@ import {
   shouldSuggestProfiles,
 } from "./profile-search";
 import { matchesMediaFilters } from "./media";
+import { encodeNevent } from "./nostr-clients";
 import {
   AUTHOR_CHUNK_SIZE,
   chunkArray,
@@ -123,7 +124,7 @@ function NoteAuthor({
   return (
     <a
       className="note-author"
-      href={njumpProfileHref(code)}
+      href={njumpHref(code)}
       target="_blank"
       rel="noreferrer"
       onClick={(event) => {
@@ -551,7 +552,11 @@ export default function App() {
               aria-haspopup="dialog"
               aria-label="Open this note in…"
               title="Open this note in…"
-              onClick={() => setOpenTarget({ kind: "note", note })}
+              onClick={() => {
+                try {
+                  setOpenTarget({ kind: "note", code: encodeNevent(note) });
+                } catch {}
+              }}
             >
               <NoteMenuIcon />
             </button>
@@ -568,9 +573,7 @@ export default function App() {
                 content={note.content}
                 tags={note.tags}
                 profiles={profiles}
-                onOpenProfile={(code) =>
-                  setOpenTarget({ kind: "profile", code })
-                }
+                onOpen={(kind, code) => setOpenTarget({ kind, code })}
               />
             </div>
           </li>
