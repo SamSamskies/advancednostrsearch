@@ -72,17 +72,57 @@ export function collectMentionIdentities(
   }));
 }
 
-export function mentionLabel(pubkey: string, displayName?: string): string {
+export function profileLabel(pubkey: string, displayName?: string): string {
   const name = displayName?.trim();
-  if (name) return `@${name}`;
+  if (name) return name;
 
   try {
-    return `@${nip19.npubEncode(pubkey).slice(0, 16)}…`;
+    return `${nip19.npubEncode(pubkey).slice(0, 16)}…`;
   } catch {
-    return "@npub…";
+    return "npub…";
   }
+}
+
+export function mentionLabel(pubkey: string, displayName?: string): string {
+  return `@${profileLabel(pubkey, displayName)}`;
 }
 
 export function njumpProfileHref(code: string): string {
   return `https://njump.me/${code}`;
+}
+
+export function addIdentities(
+  identities: MentionIdentity[],
+  extra: MentionIdentity[]
+): MentionIdentity[] {
+  const byPubkey = new Map<string, string[]>();
+  for (const identity of [...identities, ...extra]) {
+    const pubkey = identity.pubkey.trim().toLowerCase();
+    if (!pubkey) continue;
+    const relays = byPubkey.get(pubkey) ?? [];
+    for (const url of identity.relayHints) {
+      if (!relays.includes(url)) relays.push(url);
+    }
+    byPubkey.set(pubkey, relays);
+  }
+  return [...byPubkey.entries()].map(([pubkey, relayHints]) => ({
+    pubkey,
+    relayHints,
+  }));
+}
+
+export function isUnmodifiedLeftClick(event: {
+  button: number;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
 }

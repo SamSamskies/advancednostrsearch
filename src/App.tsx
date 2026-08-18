@@ -11,12 +11,19 @@ import * as nip19 from "nostr-tools/nip19";
 import type { Filter } from "nostr-tools/filter";
 import { NoteContent } from "./NoteContent";
 import { IdentityCombobox } from "./IdentityCombobox";
+import { Avatar } from "./Avatar";
 import {
   NoteMenuIcon,
   OpenInDialog,
   type OpenInTarget,
 } from "./OpenInDialog";
-import { collectMentionIdentities } from "./mentions";
+import {
+  addIdentities,
+  collectMentionIdentities,
+  isUnmodifiedLeftClick,
+  njumpProfileHref,
+  profileLabel,
+} from "./mentions";
 import {
   IdentityError,
   resolveIdentity,
@@ -70,6 +77,64 @@ async function resolveSubmittedIdentity(raw: string): Promise<NostrIdentity> {
     }
   }
   return resolveIdentity(input);
+}
+
+function encodeNpub(pubkey: string): string {
+  try {
+    return nip19.npubEncode(pubkey);
+  } catch {
+    return "";
+  }
+}
+
+function NoteAuthor({
+  pubkey,
+  createdAt,
+  profile,
+  onOpenProfile,
+}: {
+  pubkey: string;
+  createdAt: number;
+  profile?: Kind0Profile;
+  onOpenProfile: (code: string) => void;
+}) {
+  const code = encodeNpub(pubkey);
+  const name = profileLabel(pubkey, profile?.displayName);
+  const timestamp = (
+    <time dateTime={new Date(createdAt * 1000).toISOString()}>
+      {formatCreateAtDate(createdAt)}
+    </time>
+  );
+
+  const body = (
+    <>
+      <Avatar src={profile?.picture} />
+      <span className="note-author-copy">
+        <span className="note-author-name">{name}</span>
+        {timestamp}
+      </span>
+    </>
+  );
+
+  if (!code) {
+    return <div className="note-author">{body}</div>;
+  }
+
+  return (
+    <a
+      className="note-author"
+      href={njumpProfileHref(code)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(event) => {
+        if (!isUnmodifiedLeftClick(event)) return;
+        event.preventDefault();
+        onOpenProfile(code);
+      }}
+    >
+      {body}
+    </a>
+  );
 }
 
 export default function App() {
@@ -312,10 +377,16 @@ export default function App() {
   const visibleEvents = events.slice(0, currentDataLength);
 
   useEffect(() => {
-    const identities = collectMentionIdentities(
-      events.slice(0, currentDataLength).map((note) => note.content)
+    const visible = events.slice(0, currentDataLength);
+    if (visible.length === 0) return;
+
+    const identities = addIdentities(
+      collectMentionIdentities(visible.map((note) => note.content)),
+      visible.map((note) => ({
+        pubkey: note.pubkey,
+        relayHints: note.seenOn.filter((url) => url.startsWith("wss://")),
+      }))
     );
-    if (identities.length === 0) return;
 
     let cancelled = false;
     void getKind0Profiles(identities).then((found) => {
@@ -484,9 +555,14 @@ export default function App() {
             >
               <NoteMenuIcon />
             </button>
-            <time dateTime={new Date(note.created_at * 1000).toISOString()}>
-              {formatCreateAtDate(note.created_at)}
-            </time>
+            <NoteAuthor
+              pubkey={note.pubkey}
+              createdAt={note.created_at}
+              profile={profiles[note.pubkey.toLowerCase()]}
+              onOpenProfile={(code) =>
+                setOpenTarget({ kind: "profile", code })
+              }
+            />
             <div className="note-body">
               <NoteContent
                 content={note.content}

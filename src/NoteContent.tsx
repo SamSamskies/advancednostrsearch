@@ -10,6 +10,7 @@ import {
   mentionRegex,
   njumpProfileHref,
   parseMention,
+  isUnmodifiedLeftClick,
 } from "./mentions";
 import type { Kind0Profile } from "./identity";
 
@@ -56,15 +57,7 @@ export const NoteContent = ({
               rel="noreferrer"
               onClick={(event) => {
                 if (!onOpenProfile) return;
-                if (
-                  event.button !== 0 ||
-                  event.metaKey ||
-                  event.ctrlKey ||
-                  event.shiftKey ||
-                  event.altKey
-                ) {
-                  return;
-                }
+                if (!isUnmodifiedLeftClick(event)) return;
                 event.preventDefault();
                 onOpenProfile(mention.code);
               }}

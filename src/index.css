@@ -227,7 +227,7 @@ input:focus-visible {
   background: var(--signal-soft);
 }
 
-.suggest-avatar {
+.avatar {
   flex: none;
   width: 2rem;
   height: 2rem;
@@ -236,7 +236,7 @@ input:focus-visible {
   background: var(--paper);
 }
 
-.suggest-avatar-empty {
+.avatar-empty {
   display: block;
   border: 1px solid var(--line);
 }
@@ -374,9 +374,37 @@ input:focus-visible {
   border-left: 3px solid var(--signal);
 }
 
+.note-author {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  margin: 0 0 0.75rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.note-author-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.note-author-name {
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-author:hover .note-author-name {
+  text-decoration: underline;
+}
+
 .note time {
   display: block;
-  margin-bottom: 0.65rem;
   font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--muted);
