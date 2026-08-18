@@ -176,7 +176,6 @@ export default function App() {
   const [recents, setRecents] = useState<RecentSearch[]>(loadRecents);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const searchedRef = useRef(false);
 
   const updateUrl = (params?: URLSearchParams) => {
     window.history.replaceState(
@@ -420,12 +419,6 @@ export default function App() {
   const handleClearRecents = () => {
     setRecents(clearRecents());
   };
-
-  useEffect(() => {
-    if (searchedRef.current || !npub || !query) return;
-    searchedRef.current = true;
-    void handleSubmit();
-  }, []);
 
   useEffect(() => {
     const identities = recents
