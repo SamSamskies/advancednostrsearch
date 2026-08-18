@@ -58,14 +58,30 @@ export function parseImeta(tags: string[][] = []): Imeta[] {
   return entries;
 }
 
-function pathnameExtension(url: string): string | undefined {
+function extensionFromFilename(name: string): string | undefined {
+  const last = name.split("/").pop() ?? "";
+  const dot = last.lastIndexOf(".");
+  if (dot <= 0) return undefined;
+  return last.slice(dot + 1).toLowerCase();
+}
+
+/** Path first, then query values/keys like `?file=clip.mp4`. */
+function urlMediaKind(url: string): MediaKind | null {
   try {
-    const last = new URL(url).pathname.split("/").pop() ?? "";
-    const dot = last.lastIndexOf(".");
-    if (dot <= 0) return undefined;
-    return last.slice(dot + 1).toLowerCase();
+    const parsed = new URL(url);
+    const fromPath = extensionKind(extensionFromFilename(parsed.pathname));
+    if (fromPath) return fromPath;
+
+    for (const [key, value] of parsed.searchParams) {
+      const fromValue = extensionKind(extensionFromFilename(value));
+      if (fromValue) return fromValue;
+      const fromKey = extensionKind(extensionFromFilename(key));
+      if (fromKey) return fromKey;
+    }
+
+    return null;
   } catch {
-    return undefined;
+    return null;
   }
 }
 
@@ -112,7 +128,7 @@ export function classifyUrl(url: string, tags: string[][] = []): MediaKind | nul
     }
   }
 
-  const fromExt = extensionKind(pathnameExtension(normalized));
+  const fromExt = urlMediaKind(normalized);
   if (fromExt) return fromExt;
 
   // Extensionless blossom blobs are usually images in kind 1 notes.
