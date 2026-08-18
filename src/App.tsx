@@ -432,51 +432,65 @@ export default function App() {
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="query">Search query</label>
-          <input
-            id="query"
-            type="text"
-            placeholder="optional keywords"
-            onChange={makeInputOnChangeHandler(setQuery, "query")}
-            value={query}
-            disabled={isSearching}
-          />
-        </div>
+        <div className="filter-row">
+          <fieldset className="include-set" disabled={isSearching}>
+            <legend>Include</legend>
+            <label className="radio-row">
+              <input
+                type="radio"
+                name="include"
+                value={INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
+                checked={include === INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
+                onChange={(event) => handleIncludeChange(event.target.value)}
+              />
+              <span>Author notes only</span>
+            </label>
+            <label className="radio-row">
+              <input
+                type="radio"
+                name="include"
+                value={INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}
+                checked={
+                  include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM
+                }
+                onChange={(event) => handleIncludeChange(event.target.value)}
+              />
+              <span>Notes the author reacted to</span>
+            </label>
+            <label className="radio-row">
+              <input
+                type="radio"
+                name="include"
+                value={INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
+                checked={include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
+                onChange={(event) => handleIncludeChange(event.target.value)}
+              />
+              <span>Author and people they follow</span>
+            </label>
+          </fieldset>
 
-        <fieldset className="include-set" disabled={isSearching}>
-          <legend>Include</legend>
-          <label className="radio-row">
-            <input
-              type="radio"
-              name="include"
-              value={INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
-              checked={include === INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
-              onChange={(event) => handleIncludeChange(event.target.value)}
-            />
-            <span>Author notes only</span>
-          </label>
-          <label className="radio-row">
-            <input
-              type="radio"
-              name="include"
-              value={INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}
-              checked={include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}
-              onChange={(event) => handleIncludeChange(event.target.value)}
-            />
-            <span>Notes the author reacted to</span>
-          </label>
-          <label className="radio-row">
-            <input
-              type="radio"
-              name="include"
-              value={INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
-              checked={include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
-              onChange={(event) => handleIncludeChange(event.target.value)}
-            />
-            <span>Author and people they follow</span>
-          </label>
-        </fieldset>
+          <fieldset className="include-set" disabled={isSearching}>
+            <legend>Media</legend>
+            <label className="radio-row">
+              <input
+                type="checkbox"
+                name="hasImage"
+                checked={hasImage}
+                onChange={handleMediaFilterChange("hasImage", setHasImage)}
+              />
+              <span>Has image</span>
+            </label>
+            <label className="radio-row">
+              <input
+                type="checkbox"
+                name="hasVideo"
+                checked={hasVideo}
+                onChange={handleMediaFilterChange("hasVideo", setHasVideo)}
+              />
+              <span>Has video</span>
+            </label>
+          </fieldset>
+        </div>
 
         <div className="date-row">
           <div className="field">
@@ -505,27 +519,19 @@ export default function App() {
           </div>
         </div>
 
-        <fieldset className="include-set" disabled={isSearching}>
-          <legend>Media</legend>
-          <label className="radio-row">
-            <input
-              type="checkbox"
-              name="hasImage"
-              checked={hasImage}
-              onChange={handleMediaFilterChange("hasImage", setHasImage)}
-            />
-            <span>Has image</span>
+        <div className="field">
+          <label htmlFor="query">
+            Search query <span className="optional">(optional)</span>
           </label>
-          <label className="radio-row">
-            <input
-              type="checkbox"
-              name="hasVideo"
-              checked={hasVideo}
-              onChange={handleMediaFilterChange("hasVideo", setHasVideo)}
-            />
-            <span>Has video</span>
-          </label>
-        </fieldset>
+          <input
+            id="query"
+            type="text"
+            placeholder="keywords"
+            onChange={makeInputOnChangeHandler(setQuery, "query")}
+            value={query}
+            disabled={isSearching}
+          />
+        </div>
 
         <div className="actions">
           <button type="button" className="secondary" onClick={handleClear}>
