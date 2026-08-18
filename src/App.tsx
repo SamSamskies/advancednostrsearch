@@ -234,10 +234,16 @@ export default function App() {
       if (found.length === 0) {
         let text = "No notes found.";
         if ((hasImage || hasVideo) && relayCount > 0) {
+          const media =
+            hasImage && hasVideo
+              ? "image or video"
+              : hasImage
+                ? "image"
+                : "video";
           text =
             fromDate || toDate
-              ? "No matching notes in this range (latest 200). Try a different date range."
-              : "No matching notes in the latest 200. Try a from/to date.";
+              ? `None of the notes in this range (latest ${NOTE_LIMIT}) have a detectable ${media}.`
+              : `None of the latest ${NOTE_LIMIT} notes have a detectable ${media}.`;
         }
         setMessage({ text, tone: "info" });
       }
