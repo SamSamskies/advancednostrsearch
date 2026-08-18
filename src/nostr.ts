@@ -271,27 +271,35 @@ async function loadKind0Profiles(
   }
 
   const relays = profileRelaysFor(identities);
-  const events: LocatedEvent[] = [];
+  const latest = new Map<string, LocatedEvent>();
 
   for (const authors of chunkArray(
     identities.map((identity) => identity.pubkey),
     AUTHOR_CHUNK_SIZE
   )) {
-    events.push(
-      ...(await queryRelays(relays, {
+    // Relays treat `limit` as a total event cap, not one kind-0 per author,
+    // and may also apply their own default. Re-query whoever is still
+    // missing until a pass adds no new profiles.
+    let remaining = authors;
+    for (let pass = 0; pass < 4 && remaining.length > 0; pass++) {
+      const events = await queryRelays(relays, {
         kinds: [0],
-        authors,
-        limit: authors.length,
-      }))
-    );
-  }
+        authors: remaining,
+        limit: remaining.length,
+      });
 
-  const latest = new Map<string, LocatedEvent>();
-  for (const event of events) {
-    if (event.kind !== 0) continue;
-    const prev = latest.get(event.pubkey.toLowerCase());
-    if (!prev || event.created_at > prev.created_at) {
-      latest.set(event.pubkey.toLowerCase(), event);
+      for (const event of events) {
+        if (event.kind !== 0) continue;
+        const pubkey = event.pubkey.toLowerCase();
+        const prev = latest.get(pubkey);
+        if (!prev || event.created_at > prev.created_at) {
+          latest.set(pubkey, event);
+        }
+      }
+
+      const next = remaining.filter((pubkey) => !latest.has(pubkey));
+      if (next.length === remaining.length) break;
+      remaining = next;
     }
   }
 
