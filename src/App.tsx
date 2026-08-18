@@ -266,7 +266,7 @@ export default function App() {
         <p className="eyebrow">Relay search</p>
         <h1>Advanced Nostr Search</h1>
         <p className="lede">
-          Pull notes out of the mesh by author, reaction, or follows.
+          Search notes by author, notes they reacted to, or people they follow.
         </p>
       </header>
 
