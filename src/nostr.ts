@@ -242,9 +242,15 @@ function extraProfileHints(relayHints: string[]): string[] {
   );
 }
 
-function rememberTriedHints(pubkey: string, relayHints: string[]) {
+function rememberTriedHints(
+  pubkey: string,
+  relayHints: string[],
+  queriedRelays: Set<string>
+) {
   const tried = kind0TriedHints.get(pubkey) ?? new Set();
-  for (const url of extraProfileHints(relayHints)) tried.add(url);
+  for (const url of extraProfileHints(relayHints)) {
+    if (queriedRelays.has(url)) tried.add(url);
+  }
   kind0TriedHints.set(pubkey, tried);
 }
 
@@ -255,10 +261,17 @@ function needsKind0Fetch(pubkey: string, relayHints: string[]): boolean {
   return extraProfileHints(relayHints).some((url) => !tried?.has(url));
 }
 
-function profileRelaysFor(identities: { relayHints: string[] }[]): string[] {
+function profileRelaysFor(
+  identities: { pubkey: string; relayHints: string[] }[]
+): string[] {
   const base = dedupeRelays(PROFILE_METADATA_RELAYS);
-  const extra = extraProfileHints(
-    identities.flatMap((identity) => identity.relayHints)
+  const extra = dedupeRelays(
+    identities.flatMap((identity) => {
+      const tried = kind0TriedHints.get(identity.pubkey);
+      return extraProfileHints(identity.relayHints).filter(
+        (url) => !tried?.has(url)
+      );
+    })
   ).slice(0, MAX_PROFILE_HINT_RELAYS);
   return [...base, ...extra];
 }
@@ -266,11 +279,11 @@ function profileRelaysFor(identities: { relayHints: string[] }[]): string[] {
 async function loadKind0Profiles(
   identities: { pubkey: string; relayHints: string[] }[]
 ): Promise<void> {
-  for (const { pubkey, relayHints } of identities) {
-    rememberTriedHints(pubkey, relayHints);
-  }
-
   const relays = profileRelaysFor(identities);
+  const queriedRelays = new Set(relays);
+  for (const { pubkey, relayHints } of identities) {
+    rememberTriedHints(pubkey, relayHints, queriedRelays);
+  }
   const latest = new Map<string, LocatedEvent>();
 
   for (const authors of chunkArray(
