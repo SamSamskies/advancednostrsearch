@@ -5,6 +5,13 @@ import {
   newlineRegex,
   normalizeHttpUrl,
 } from "./media";
+import {
+  mentionLabel,
+  mentionRegex,
+  njumpProfileHref,
+  parseMention,
+} from "./mentions";
+import type { Kind0Profile } from "./identity";
 
 const wavlakeRegex =
   /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile|shows)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
@@ -12,12 +19,19 @@ const wavlakeRegex =
 export const NoteContent = ({
   content,
   tags = [],
+  profiles = {},
+  onOpenProfile,
 }: {
   content: string;
   tags?: string[][];
+  profiles?: Record<string, Kind0Profile>;
+  onOpenProfile?: (code: string) => void;
 }) => {
   const parts = content.split(
-    new RegExp(`(?:${newlineRegex.source}|${hyperlinkRegex.source})`, "gi")
+    new RegExp(
+      `(?:${newlineRegex.source}|${mentionRegex.source}|${hyperlinkRegex.source})`,
+      "gi"
+    )
   );
 
   return (
@@ -29,6 +43,38 @@ export const NoteContent = ({
 
         if (part.match(newlineRegex)) {
           return <br key={index} />;
+        }
+
+        const mention = parseMention(part);
+        if (mention) {
+          return (
+            <a
+              key={index}
+              className="note-mention"
+              href={njumpProfileHref(mention.code)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => {
+                if (!onOpenProfile) return;
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                onOpenProfile(mention.code);
+              }}
+            >
+              {mentionLabel(
+                mention.pubkey,
+                profiles[mention.pubkey]?.displayName
+              )}
+            </a>
+          );
         }
 
         if (/^https?:\/\//i.test(part) && part.match(wavlakeRegex)) {

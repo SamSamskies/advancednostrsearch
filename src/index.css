@@ -391,6 +391,15 @@ input:focus-visible {
   color: var(--signal);
 }
 
+.note-mention {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.note-mention:hover {
+  text-decoration: underline;
+}
+
 .note-image,
 .note-video,
 .note-embed {

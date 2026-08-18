@@ -6,7 +6,12 @@ import {
   detectClientPlatform,
   encodeNevent,
   isWebClientHref,
+  type OpenInKind,
 } from "./nostr-clients";
+
+export type OpenInTarget =
+  | { kind: "note"; note: LocatedEvent }
+  | { kind: "profile"; code: string };
 
 export function NoteMenuIcon() {
   return (
@@ -18,21 +23,25 @@ export function NoteMenuIcon() {
   );
 }
 
+function targetCode(target: OpenInTarget): string {
+  try {
+    return target.kind === "note" ? encodeNevent(target.note) : target.code;
+  } catch {
+    return "";
+  }
+}
+
 export function OpenInDialog({
-  note,
+  target,
   onClose,
 }: {
-  note: LocatedEvent;
+  target: OpenInTarget;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  let nevent = "";
-  try {
-    nevent = encodeNevent(note);
-  } catch {
-    nevent = "";
-  }
+  const code = targetCode(target);
+  const kind: OpenInKind = target.kind;
   const clients = clientsForPlatform(detectClientPlatform());
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -50,7 +59,7 @@ export function OpenInDialog({
     };
   }, []);
 
-  if (!nevent) return null;
+  if (!code) return null;
 
   return (
     <dialog
@@ -66,7 +75,7 @@ export function OpenInDialog({
       </h2>
       <div className="open-in-list">
         {clients.map((client, index) => {
-          const href = clientHref(client, nevent);
+          const href = clientHref(client, code, kind);
           return (
             <a
               key={client.id}

@@ -11,10 +11,16 @@ import * as nip19 from "nostr-tools/nip19";
 import type { Filter } from "nostr-tools/filter";
 import { NoteContent } from "./NoteContent";
 import { IdentityCombobox } from "./IdentityCombobox";
-import { NoteMenuIcon, OpenInDialog } from "./OpenInDialog";
+import {
+  NoteMenuIcon,
+  OpenInDialog,
+  type OpenInTarget,
+} from "./OpenInDialog";
+import { collectMentionIdentities } from "./mentions";
 import {
   IdentityError,
   resolveIdentity,
+  type Kind0Profile,
   type NostrIdentity,
 } from "./identity";
 import {
@@ -32,6 +38,7 @@ import {
   findNotes,
   formatCreateAtDate,
   getFollowedPubkeys,
+  getKind0Profiles,
   getUserReactionEventIds,
   getUserRelays,
   mergeLocatedEvents,
@@ -83,7 +90,10 @@ export default function App() {
   );
   const [events, setEvents] = useState<LocatedEvent[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
-  const [openNote, setOpenNote] = useState<LocatedEvent | null>(null);
+  const [openTarget, setOpenTarget] = useState<OpenInTarget | null>(null);
+  const [profiles, setProfiles] = useState<Record<string, Kind0Profile>>(
+    {}
+  );
   const [message, setMessage] = useState<{
     text: string;
     tone: "error" | "info";
@@ -274,7 +284,8 @@ export default function App() {
     setHasVideo(false);
     setEvents([]);
     setCurrentDataLength(0);
-    setOpenNote(null);
+    setOpenTarget(null);
+    setProfiles({});
     setMessage(null);
   };
 
@@ -299,6 +310,32 @@ export default function App() {
   }, [currentDataLength, events.length]);
 
   const visibleEvents = events.slice(0, currentDataLength);
+
+  useEffect(() => {
+    const identities = collectMentionIdentities(
+      events.slice(0, currentDataLength).map((note) => note.content)
+    );
+    if (identities.length === 0) return;
+
+    let cancelled = false;
+    void getKind0Profiles(identities).then((found) => {
+      if (cancelled) return;
+      setProfiles((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [pubkey, profile] of Object.entries(found)) {
+          if (prev[pubkey] === profile) continue;
+          next[pubkey] = profile;
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [events, currentDataLength]);
 
   return (
     <main className="page">
@@ -443,7 +480,7 @@ export default function App() {
               aria-haspopup="dialog"
               aria-label="Open this note in…"
               title="Open this note in…"
-              onClick={() => setOpenNote(note)}
+              onClick={() => setOpenTarget({ kind: "note", note })}
             >
               <NoteMenuIcon />
             </button>
@@ -451,15 +488,25 @@ export default function App() {
               {formatCreateAtDate(note.created_at)}
             </time>
             <div className="note-body">
-              <NoteContent content={note.content} tags={note.tags} />
+              <NoteContent
+                content={note.content}
+                tags={note.tags}
+                profiles={profiles}
+                onOpenProfile={(code) =>
+                  setOpenTarget({ kind: "profile", code })
+                }
+              />
             </div>
           </li>
         ))}
       </ol>
       <div ref={sentinelRef} className="sentinel" aria-hidden="true" />
 
-      {openNote ? (
-        <OpenInDialog note={openNote} onClose={() => setOpenNote(null)} />
+      {openTarget ? (
+        <OpenInDialog
+          target={openTarget}
+          onClose={() => setOpenTarget(null)}
+        />
       ) : null}
     </main>
   );
