@@ -263,7 +263,6 @@ export default function App() {
   return (
     <main className="page">
       <header className="hero">
-        <p className="eyebrow">Relay search</p>
         <h1>Advanced Nostr Search</h1>
         <p className="lede">
           Search notes by author, notes they reacted to, or people they follow.

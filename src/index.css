@@ -96,15 +96,6 @@ input:focus-visible {
   padding: 0.5rem 0 1.5rem;
 }
 
-.eyebrow {
-  margin: 0 0 0.55rem;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--signal);
-}
-
 .hero h1 {
   margin: 0;
   font-family: var(--font-display);
