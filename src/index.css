@@ -197,17 +197,22 @@ summary:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
+  width: 100%;
   padding: 0.5rem 0.45rem;
+  border: none;
   border-radius: 8px;
-  text-decoration: none;
+  background: none;
+  font: inherit;
+  text-align: left;
   color: inherit;
+  cursor: pointer;
 }
 
 .recent-link:hover {
   background: var(--signal-soft);
 }
 
-.recent-link[aria-disabled="true"] {
+.recent-link:disabled {
   opacity: 0.45;
   pointer-events: none;
 }

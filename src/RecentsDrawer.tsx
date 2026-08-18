@@ -1,5 +1,4 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { isUnmodifiedLeftClick } from "./mentions";
 import {
   recentSummary,
   recentTitle,
@@ -102,23 +101,17 @@ export function RecentsDrawer({
             <ul className="recents-list">
               {recents.map((recent) => (
                 <li key={toQueryString(recent)}>
-                  <a
+                  <button
+                    type="button"
                     className="recent-link"
-                    href={`?${toQueryString(recent)}`}
-                    aria-disabled={isSearching || undefined}
-                    tabIndex={isSearching ? -1 : undefined}
-                    onClick={(event) => {
-                      if (!isUnmodifiedLeftClick(event)) return;
-                      event.preventDefault();
-                      if (isSearching) return;
-                      onRestore(recent);
-                    }}
+                    disabled={isSearching}
+                    onClick={() => onRestore(recent)}
                   >
                     <span className="recent-title">{recentTitle(recent)}</span>
                     <span className="recent-summary">
                       {recentSummary(recent)}
                     </span>
-                  </a>
+                  </button>
                 </li>
               ))}
             </ul>
