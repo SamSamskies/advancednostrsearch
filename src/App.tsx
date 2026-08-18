@@ -22,6 +22,7 @@ import {
   searchProfiles,
   shouldSuggestProfiles,
 } from "./profile-search";
+import { matchesMediaFilters } from "./media";
 import {
   AUTHOR_CHUNK_SIZE,
   chunkArray,
@@ -43,6 +44,8 @@ const INCLUDE_FOLLOWED_USERS_QUERY_PARAM = "followed";
 const INCLUDE_ONLY_AUTHOR_QUERY_PARAM = "onlyAuthor";
 const INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM =
   "onlyNotesAuthorReactedTo";
+
+const queryFlagEnabled = (value: string | null) => value === "1";
 
 async function resolveSubmittedIdentity(raw: string): Promise<NostrIdentity> {
   const input = raw.trim();
@@ -72,6 +75,12 @@ export default function App() {
   const [query, setQuery] = useState(queryParams.get("query") ?? "");
   const [fromDate, setFromDate] = useState(queryParams.get("fromDate") ?? "");
   const [toDate, setToDate] = useState(queryParams.get("toDate") ?? "");
+  const [hasImage, setHasImage] = useState(
+    queryFlagEnabled(queryParams.get("hasImage"))
+  );
+  const [hasVideo, setHasVideo] = useState(
+    queryFlagEnabled(queryParams.get("hasVideo"))
+  );
   const [events, setEvents] = useState<LocatedEvent[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
   const [openNote, setOpenNote] = useState<LocatedEvent | null>(null);
@@ -125,6 +134,14 @@ export default function App() {
     updateQueryParams("include", value);
     setInclude(value);
   };
+
+  const handleMediaFilterChange =
+    (key: "hasImage" | "hasVideo", set: Dispatch<SetStateAction<boolean>>) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const checked = event.target.checked;
+      updateQueryParams(key, checked ? "1" : "");
+      set(checked);
+    };
 
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -206,8 +223,21 @@ export default function App() {
         found = mergeLocatedEvents(eventChunks.flat());
       }
 
+      if (hasImage || hasVideo) {
+        found = found.filter((note) =>
+          matchesMediaFilters(note, hasImage, hasVideo)
+        );
+      }
+
       if (found.length === 0) {
-        setMessage({ text: "No notes found.", tone: "info" });
+        let text = "No notes found.";
+        if (hasImage || hasVideo) {
+          text =
+            fromDate || toDate
+              ? "No matching notes in this range (latest 200). Try a different date range."
+              : "No matching notes in the latest 200. Try a from/to date.";
+        }
+        setMessage({ text, tone: "info" });
       }
 
       setCurrentDataLength(Math.min(5, found.length));
@@ -232,6 +262,8 @@ export default function App() {
     setQuery("");
     setFromDate("");
     setToDate("");
+    setHasImage(false);
+    setHasVideo(false);
     setEvents([]);
     setCurrentDataLength(0);
     setOpenNote(null);
@@ -356,6 +388,28 @@ export default function App() {
           </div>
         </div>
 
+        <fieldset className="include-set" disabled={isSearching}>
+          <legend>Media</legend>
+          <label className="radio-row">
+            <input
+              type="checkbox"
+              name="hasImage"
+              checked={hasImage}
+              onChange={handleMediaFilterChange("hasImage", setHasImage)}
+            />
+            <span>Has image</span>
+          </label>
+          <label className="radio-row">
+            <input
+              type="checkbox"
+              name="hasVideo"
+              checked={hasVideo}
+              onChange={handleMediaFilterChange("hasVideo", setHasVideo)}
+            />
+            <span>Has video</span>
+          </label>
+        </fieldset>
+
         <div className="actions">
           <button type="button" className="secondary" onClick={handleClear}>
             Clear
@@ -389,7 +443,7 @@ export default function App() {
               {formatCreateAtDate(note.created_at)}
             </time>
             <div className="note-body">
-              <NoteContent content={note.content} />
+              <NoteContent content={note.content} tags={note.tags} />
             </div>
           </li>
         ))}
