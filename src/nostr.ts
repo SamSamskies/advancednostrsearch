@@ -255,7 +255,8 @@ function rememberTriedHints(
 }
 
 function needsKind0Fetch(pubkey: string, relayHints: string[]): boolean {
-  if (kind0Cache.get(pubkey)) return false;
+  const cached = kind0Cache.get(pubkey);
+  if (cached?.picture || cached?.displayName || cached?.nip05) return false;
   if (!kind0Cache.has(pubkey)) return true;
   const tried = kind0TriedHints.get(pubkey);
   return extraProfileHints(relayHints).some((url) => !tried?.has(url));
