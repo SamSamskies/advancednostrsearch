@@ -69,13 +69,7 @@ export const NoteContent = ({
 
         if (media === "video") {
           return (
-            <video
-              key={index}
-              className="note-video"
-              src={url}
-              controls
-              preload="none"
-            >
+            <video key={index} className="note-video" src={url} controls>
               {url}
             </video>
           );
