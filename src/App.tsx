@@ -11,10 +11,23 @@ import * as nip19 from "nostr-tools/nip19";
 import type { Filter } from "nostr-tools/filter";
 import { NoteContent } from "./NoteContent";
 import { IdentityCombobox } from "./IdentityCombobox";
-import { NoteMenuIcon, OpenInDialog } from "./OpenInDialog";
+import { Avatar } from "./Avatar";
+import {
+  NoteMenuIcon,
+  OpenInDialog,
+  type OpenInTarget,
+} from "./OpenInDialog";
+import {
+  addIdentities,
+  collectMentionIdentities,
+  isUnmodifiedLeftClick,
+  njumpHref,
+  profileLabel,
+} from "./mentions";
 import {
   IdentityError,
   resolveIdentity,
+  type Kind0Profile,
   type NostrIdentity,
 } from "./identity";
 import {
@@ -23,6 +36,7 @@ import {
   shouldSuggestProfiles,
 } from "./profile-search";
 import { matchesMediaFilters } from "./media";
+import { encodeNevent } from "./nostr-clients";
 import {
   AUTHOR_CHUNK_SIZE,
   chunkArray,
@@ -32,6 +46,7 @@ import {
   findNotes,
   formatCreateAtDate,
   getFollowedPubkeys,
+  getKind0Profiles,
   getUserReactionEventIds,
   getUserRelays,
   mergeLocatedEvents,
@@ -65,6 +80,64 @@ async function resolveSubmittedIdentity(raw: string): Promise<NostrIdentity> {
   return resolveIdentity(input);
 }
 
+function encodeNpub(pubkey: string): string {
+  try {
+    return nip19.npubEncode(pubkey);
+  } catch {
+    return "";
+  }
+}
+
+function NoteAuthor({
+  pubkey,
+  createdAt,
+  profile,
+  onOpenProfile,
+}: {
+  pubkey: string;
+  createdAt: number;
+  profile?: Kind0Profile;
+  onOpenProfile: (code: string) => void;
+}) {
+  const code = encodeNpub(pubkey);
+  const name = profileLabel(pubkey, profile?.displayName);
+  const timestamp = (
+    <time dateTime={new Date(createdAt * 1000).toISOString()}>
+      {formatCreateAtDate(createdAt)}
+    </time>
+  );
+
+  const body = (
+    <>
+      <Avatar src={profile?.picture} />
+      <span className="note-author-copy">
+        <span className="note-author-name">{name}</span>
+        {timestamp}
+      </span>
+    </>
+  );
+
+  if (!code) {
+    return <div className="note-author">{body}</div>;
+  }
+
+  return (
+    <a
+      className="note-author"
+      href={njumpHref(code)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(event) => {
+        if (!isUnmodifiedLeftClick(event)) return;
+        event.preventDefault();
+        onOpenProfile(code);
+      }}
+    >
+      {body}
+    </a>
+  );
+}
+
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const [isSearching, setIsSearching] = useState(false);
@@ -83,7 +156,10 @@ export default function App() {
   );
   const [events, setEvents] = useState<LocatedEvent[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
-  const [openNote, setOpenNote] = useState<LocatedEvent | null>(null);
+  const [openTarget, setOpenTarget] = useState<OpenInTarget | null>(null);
+  const [profiles, setProfiles] = useState<Record<string, Kind0Profile>>(
+    {}
+  );
   const [message, setMessage] = useState<{
     text: string;
     tone: "error" | "info";
@@ -274,7 +350,8 @@ export default function App() {
     setHasVideo(false);
     setEvents([]);
     setCurrentDataLength(0);
-    setOpenNote(null);
+    setOpenTarget(null);
+    setProfiles({});
     setMessage(null);
   };
 
@@ -299,6 +376,38 @@ export default function App() {
   }, [currentDataLength, events.length]);
 
   const visibleEvents = events.slice(0, currentDataLength);
+
+  useEffect(() => {
+    const visible = events.slice(0, currentDataLength);
+    if (visible.length === 0) return;
+
+    const identities = addIdentities(
+      collectMentionIdentities(visible.map((note) => note.content)),
+      visible.map((note) => ({
+        pubkey: note.pubkey,
+        relayHints: note.seenOn.filter((url) => url.startsWith("wss://")),
+      }))
+    );
+
+    let cancelled = false;
+    void getKind0Profiles(identities).then((found) => {
+      if (cancelled) return;
+      setProfiles((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [pubkey, profile] of Object.entries(found)) {
+          if (prev[pubkey] === profile) continue;
+          next[pubkey] = profile;
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [events, currentDataLength]);
 
   return (
     <main className="page">
@@ -443,23 +552,40 @@ export default function App() {
               aria-haspopup="dialog"
               aria-label="Open this note in…"
               title="Open this note in…"
-              onClick={() => setOpenNote(note)}
+              onClick={() => {
+                try {
+                  setOpenTarget({ kind: "note", code: encodeNevent(note) });
+                } catch {}
+              }}
             >
               <NoteMenuIcon />
             </button>
-            <time dateTime={new Date(note.created_at * 1000).toISOString()}>
-              {formatCreateAtDate(note.created_at)}
-            </time>
+            <NoteAuthor
+              pubkey={note.pubkey}
+              createdAt={note.created_at}
+              profile={profiles[note.pubkey.toLowerCase()]}
+              onOpenProfile={(code) =>
+                setOpenTarget({ kind: "profile", code })
+              }
+            />
             <div className="note-body">
-              <NoteContent content={note.content} tags={note.tags} />
+              <NoteContent
+                content={note.content}
+                tags={note.tags}
+                profiles={profiles}
+                onOpen={(kind, code) => setOpenTarget({ kind, code })}
+              />
             </div>
           </li>
         ))}
       </ol>
       <div ref={sentinelRef} className="sentinel" aria-hidden="true" />
 
-      {openNote ? (
-        <OpenInDialog note={openNote} onClose={() => setOpenNote(null)} />
+      {openTarget ? (
+        <OpenInDialog
+          target={openTarget}
+          onClose={() => setOpenTarget(null)}
+        />
       ) : null}
     </main>
   );

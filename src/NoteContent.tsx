@@ -5,6 +5,16 @@ import {
   newlineRegex,
   normalizeHttpUrl,
 } from "./media";
+import {
+  isUnmodifiedLeftClick,
+  mentionLabel,
+  njumpHref,
+  noteRefLabel,
+  nostrUriRegex,
+  parseNostrEntity,
+} from "./mentions";
+import type { Kind0Profile } from "./identity";
+import type { OpenInKind } from "./nostr-clients";
 
 const wavlakeRegex =
   /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile|shows)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
@@ -12,12 +22,19 @@ const wavlakeRegex =
 export const NoteContent = ({
   content,
   tags = [],
+  profiles = {},
+  onOpen,
 }: {
   content: string;
   tags?: string[][];
+  profiles?: Record<string, Kind0Profile>;
+  onOpen?: (kind: OpenInKind, code: string) => void;
 }) => {
   const parts = content.split(
-    new RegExp(`(?:${newlineRegex.source}|${hyperlinkRegex.source})`, "gi")
+    new RegExp(
+      `(?:${newlineRegex.source}|${nostrUriRegex.source}|${hyperlinkRegex.source})`,
+      "gi"
+    )
   );
 
   return (
@@ -29,6 +46,36 @@ export const NoteContent = ({
 
         if (part.match(newlineRegex)) {
           return <br key={index} />;
+        }
+
+        const entity = parseNostrEntity(part);
+        if (entity) {
+          const kind: OpenInKind = entity.type === "profile" ? "profile" : "note";
+          const label =
+            entity.type === "profile"
+              ? mentionLabel(
+                  entity.pubkey,
+                  profiles[entity.pubkey]?.displayName
+                )
+              : noteRefLabel(entity.code);
+
+          return (
+            <a
+              key={index}
+              className="note-mention"
+              href={njumpHref(entity.code)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => {
+                if (!onOpen) return;
+                if (!isUnmodifiedLeftClick(event)) return;
+                event.preventDefault();
+                onOpen(kind, entity.code);
+              }}
+            >
+              {label}
+            </a>
+          );
         }
 
         if (/^https?:\/\//i.test(part) && part.match(wavlakeRegex)) {

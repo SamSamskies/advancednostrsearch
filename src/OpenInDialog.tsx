@@ -1,12 +1,16 @@
 import { useEffect, useId, useRef } from "react";
-import type { LocatedEvent } from "./nostr";
 import {
   clientHref,
   clientsForPlatform,
   detectClientPlatform,
-  encodeNevent,
   isWebClientHref,
+  type OpenInKind,
 } from "./nostr-clients";
+
+export type OpenInTarget = {
+  kind: OpenInKind;
+  code: string;
+};
 
 export function NoteMenuIcon() {
   return (
@@ -19,20 +23,15 @@ export function NoteMenuIcon() {
 }
 
 export function OpenInDialog({
-  note,
+  target,
   onClose,
 }: {
-  note: LocatedEvent;
+  target: OpenInTarget;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  let nevent = "";
-  try {
-    nevent = encodeNevent(note);
-  } catch {
-    nevent = "";
-  }
+  const { kind, code } = target;
   const clients = clientsForPlatform(detectClientPlatform());
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -50,7 +49,7 @@ export function OpenInDialog({
     };
   }, []);
 
-  if (!nevent) return null;
+  if (!code) return null;
 
   return (
     <dialog
@@ -66,7 +65,7 @@ export function OpenInDialog({
       </h2>
       <div className="open-in-list">
         {clients.map((client, index) => {
-          const href = clientHref(client, nevent);
+          const href = clientHref(client, code, kind);
           return (
             <a
               key={client.id}

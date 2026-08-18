@@ -5,6 +5,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { Avatar } from "./Avatar";
 import {
   SEARCH_DEBOUNCE_MS,
   searchProfiles,
@@ -12,31 +13,6 @@ import {
   suggestionValue,
   type ProfileSuggestion,
 } from "./profile-search";
-
-function SuggestAvatar({ src }: { src?: string }) {
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [src]);
-
-  if (!src || failed) {
-    return (
-      <span className="suggest-avatar suggest-avatar-empty" aria-hidden="true" />
-    );
-  }
-
-  return (
-    <img
-      className="suggest-avatar"
-      src={src}
-      alt=""
-      referrerPolicy="no-referrer"
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
-  );
-}
 
 type IdentityComboboxProps = {
   id: string;
@@ -236,7 +212,7 @@ export function IdentityCombobox({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => selectSuggestion(index)}
           >
-            <SuggestAvatar src={item.picture} />
+            <Avatar src={item.picture} />
             <span className="suggest-copy">
               <span className="suggest-name">
                 {item.displayName?.trim() || `${item.npub.slice(0, 16)}…`}

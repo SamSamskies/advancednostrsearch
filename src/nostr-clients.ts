@@ -3,11 +3,15 @@ import type { LocatedEvent } from "./nostr";
 
 export type ClientPlatform = "android" | "ios" | "web";
 
+export type OpenInKind = "note" | "profile";
+
 export type NostrClient = {
   id: string;
   name: string;
   platform: "native" | "web" | "ios" | "android";
   url: string;
+  /** Defaults to `url`. Use when the profile path differs (e.g. Primal `/p/` vs `/e/`). */
+  profileUrl?: string;
 };
 
 /** Keep nevents shareable; extra relays mostly bloat the bech32 string. */
@@ -57,6 +61,7 @@ export const NOSTR_CLIENTS: NostrClient[] = [
     name: "Primal",
     platform: "web",
     url: "https://primal.net/e/{code}",
+    profileUrl: "https://primal.net/p/{code}",
   },
   {
     id: "coracle",
@@ -101,8 +106,13 @@ export function encodeNevent(note: LocatedEvent): string {
   });
 }
 
-export function clientHref(client: NostrClient, nevent: string): string {
-  return client.url.replaceAll("{code}", nevent);
+export function clientHref(
+  client: NostrClient,
+  code: string,
+  kind: OpenInKind = "note"
+): string {
+  const template = kind === "profile" ? (client.profileUrl ?? client.url) : client.url;
+  return template.replaceAll("{code}", code);
 }
 
 export function clientsForPlatform(platform: ClientPlatform): NostrClient[] {
