@@ -1,14 +1,21 @@
 import { Fragment } from "react";
+import {
+  classifyUrl,
+  hyperlinkRegex,
+  newlineRegex,
+  normalizeHttpUrl,
+} from "./media";
 
-const newlineRegex = /(\r?\n)/gi;
-const hyperlinkRegex = /(https?:\/\/[^\s]+)/gi;
 const wavlakeRegex =
   /(https?:\/\/(?:player\.|www\.)?wavlake\.com\/(?!top|new|artists|account|activity|login|preferences|feed|profile|shows)(?:(?:track|album)\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|[a-z-]+))/gi;
-const imageUrlRegex =
-  /(https?:\/\/.*\.(?:png|jpg|jpeg|jfif|gif|bmp|svg|webp))/gi;
-const videoUrlRegex = /(https?:\/\/.*\.(?:mp4|mov|ogg|webm|mkv|avi|m4v))/gi;
 
-export const NoteContent = ({ content }: { content: string }) => {
+export const NoteContent = ({
+  content,
+  tags = [],
+}: {
+  content: string;
+  tags?: string[][];
+}) => {
   const parts = content.split(
     new RegExp(`(?:${newlineRegex.source}|${hyperlinkRegex.source})`, "gi")
   );
@@ -24,7 +31,7 @@ export const NoteContent = ({ content }: { content: string }) => {
           return <br key={index} />;
         }
 
-        if (part.match(wavlakeRegex)) {
+        if (/^https?:\/\//i.test(part) && part.match(wavlakeRegex)) {
           const convertedUrl = part.replace(
             /(?:player\.|www\.)?wavlake\.com/,
             "embed.wavlake.com"
@@ -41,23 +48,36 @@ export const NoteContent = ({ content }: { content: string }) => {
           );
         }
 
-        if (part.match(imageUrlRegex)) {
+        if (!/^https?:\/\//i.test(part)) {
+          return <Fragment key={index}>{part}</Fragment>;
+        }
+
+        const url = normalizeHttpUrl(part);
+        const media = classifyUrl(url, tags);
+
+        if (media === "image") {
           return (
-            <img key={index} className="note-image" src={part} alt="" />
+            <img
+              key={index}
+              className="note-image"
+              src={url}
+              alt=""
+              loading="lazy"
+            />
           );
         }
 
-        if (part.match(videoUrlRegex)) {
+        if (media === "video") {
           return (
-            <video key={index} className="note-video" src={part} controls>
-              {part}
+            <video key={index} className="note-video" src={url} controls>
+              {url}
             </video>
           );
         }
 
         if (part.match(hyperlinkRegex)) {
           return (
-            <a key={index} href={part} target="_blank" rel="noreferrer">
+            <a key={index} href={url} target="_blank" rel="noreferrer">
               {part}
             </a>
           );
