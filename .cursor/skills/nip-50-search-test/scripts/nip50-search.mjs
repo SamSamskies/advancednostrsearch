@@ -39,7 +39,13 @@ if (!query) {
 let author = arg("author")?.toLowerCase();
 const npub = arg("npub");
 if (!author && npub) {
-  const decoded = nip19.decode(npub);
+  let decoded;
+  try {
+    decoded = nip19.decode(npub);
+  } catch {
+    console.error("--npub is not a valid bech32 npub");
+    process.exit(1);
+  }
   if (decoded.type !== "npub") {
     console.error("--npub must decode to npub");
     process.exit(1);
