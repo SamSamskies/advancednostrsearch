@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  matchesRecentFilter,
   recentSummary,
   recentTitle,
   toQueryString,
@@ -27,6 +28,15 @@ export function RecentsDrawer({
   children: ReactNode;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [filter, setFilter] = useState("");
+  const visibleRecents = useMemo(
+    () => recents.filter((recent) => matchesRecentFilter(recent, filter)),
+    [recents, filter]
+  );
+
+  useEffect(() => {
+    if (!open) setFilter("");
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,23 +108,37 @@ export function RecentsDrawer({
 
         {recents.length > 0 ? (
           <div className="drawer-body">
-            <ul className="recents-list">
-              {recents.map((recent) => (
-                <li key={toQueryString(recent)}>
-                  <button
-                    type="button"
-                    className="recent-link"
-                    disabled={isSearching}
-                    onClick={() => onRestore(recent)}
-                  >
-                    <span className="recent-title">{recentTitle(recent)}</span>
-                    <span className="recent-summary">
-                      {recentSummary(recent)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <label className="recents-filter">
+              <span className="visually-hidden">Filter recent searches</span>
+              <input
+                type="search"
+                value={filter}
+                placeholder="Filter recents"
+                autoComplete="off"
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </label>
+            {visibleRecents.length > 0 ? (
+              <ul className="recents-list">
+                {visibleRecents.map((recent) => (
+                  <li key={toQueryString(recent)}>
+                    <button
+                      type="button"
+                      className="recent-link"
+                      disabled={isSearching}
+                      onClick={() => onRestore(recent)}
+                    >
+                      <span className="recent-title">{recentTitle(recent)}</span>
+                      <span className="recent-summary">
+                        {recentSummary(recent)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="drawer-empty">No matching searches.</p>
+            )}
             <button
               type="button"
               className="recents-clear"

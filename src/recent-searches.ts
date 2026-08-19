@@ -7,7 +7,7 @@ export const INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM =
   "onlyNotesAuthorReactedTo";
 
 export const RECENT_SEARCHES_STORAGE_KEY = "advancednostrsearch:recents";
-export const MAX_RECENT_SEARCHES = 10;
+export const MAX_RECENT_SEARCHES = 200;
 
 export type SearchFields = {
   npub: string;
@@ -62,6 +62,27 @@ export function recentTitle(recent: RecentSearch): string {
   if (name) return name;
   const npub = recent.npub.trim();
   return npub.length > 16 ? `${npub.slice(0, 16)}…` : npub || "Unknown author";
+}
+
+export function matchesRecentFilter(
+  recent: RecentSearch,
+  filter: string
+): boolean {
+  const tokens = filter
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return true;
+  const haystack = [
+    recentTitle(recent),
+    recentSummary(recent),
+    recent.npub,
+    recent.query,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
 }
 
 export function recentSummary(recent: RecentSearch): string {
