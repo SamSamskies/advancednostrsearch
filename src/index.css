@@ -133,6 +133,18 @@ summary:focus-visible {
   color: var(--muted);
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .drawer-empty {
   margin: 0.65rem 0.45rem 0;
   color: var(--muted);
@@ -145,7 +157,12 @@ summary:focus-visible {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.drawer-body .drawer-empty {
+  flex: 1;
+  min-height: 0;
 }
 
 .drawer-footer {
@@ -153,9 +170,28 @@ summary:focus-visible {
   padding-top: 1rem;
 }
 
+.recents-filter {
+  position: relative;
+  flex-shrink: 0;
+  margin: 0 0.15rem 0.4rem;
+}
+
+.recents-filter input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  appearance: none;
+}
+
 .recents-clear {
+  flex-shrink: 0;
   align-self: flex-start;
-  margin: 0.15rem 0.45rem 0.65rem;
+  margin: 0.35rem 0.45rem 0.15rem;
   padding: 0.2rem 0.15rem;
   border: none;
   background: none;
@@ -187,10 +223,13 @@ summary:focus-visible {
 
 .recents-list {
   list-style: none;
-  margin: 0.2rem 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .recent-link {
