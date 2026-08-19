@@ -10,6 +10,7 @@ export type LocatedEvent = Event & { seenOn: string[] };
 
 /** NIP-50 kind 1 search. Vertex indexes profiles, not notes. */
 export const NOTE_SEARCH_RELAYS = [
+  "wss://relay.ditto.pub",
   "wss://relay.noswhere.com",
   "wss://search.nos.today",
 ];
