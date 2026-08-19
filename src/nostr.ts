@@ -231,6 +231,16 @@ export async function findNotes(
   return queryRelays(relays, filter);
 }
 
+/** Case-insensitive substring match on note content. Relays often ignore or reject NIP-50 `search`. */
+export function matchesSearchQuery(
+  note: { content: string },
+  query: string
+): boolean {
+  const term = query.trim().toLowerCase();
+  if (!term) return true;
+  return note.content.toLowerCase().includes(term);
+}
+
 const kind0Cache = new Map<string, Kind0Profile | null>();
 const kind0Inflight = new Map<string, Promise<void>>();
 const kind0TriedHints = new Map<string, Set<string>>();

@@ -49,6 +49,7 @@ import {
   getKind0Profiles,
   getUserReactionEventIds,
   getUserRelays,
+  matchesSearchQuery,
   mergeLocatedEvents,
   NOTE_LIMIT,
   NOTE_SEARCH_RELAYS,
@@ -281,13 +282,15 @@ export default function App() {
         kinds: [1],
         limit: NOTE_LIMIT,
       };
-      if (fields.query) defaultKindOneFilter.search = fields.query;
       if (fields.fromDate) {
         defaultKindOneFilter.since = convertDateToUnixTimestamp(fields.fromDate);
       }
       if (fields.toDate) {
         defaultKindOneFilter.until = convertDateToUnixTimestamp(fields.toDate);
       }
+      const searchFilter: Filter | undefined = fields.query
+        ? { ...defaultKindOneFilter, search: fields.query }
+        : undefined;
 
       let found: LocatedEvent[] = [];
 
@@ -300,15 +303,17 @@ export default function App() {
 
         if (reactionEventIds.length > 0) {
           const userRelays = await getUserRelays(identity);
-          const relays = [
-            ...(fields.query ? NOTE_SEARCH_RELAYS : []),
-            ...userRelays,
-            ...DEFAULT_RELAYS,
-          ];
+          const relays = [...userRelays, ...DEFAULT_RELAYS];
           const chunks = await Promise.all(
-            chunkArray(reactionEventIds, AUTHOR_CHUNK_SIZE).map((ids) =>
-              findNotes(relays, { ...defaultKindOneFilter, ids })
-            )
+            chunkArray(reactionEventIds, AUTHOR_CHUNK_SIZE).flatMap((ids) => {
+              const jobs = [findNotes(relays, { ...defaultKindOneFilter, ids })];
+              if (searchFilter) {
+                jobs.push(
+                  findNotes(NOTE_SEARCH_RELAYS, { ...searchFilter, ids })
+                );
+              }
+              return jobs;
+            })
           );
           found = mergeLocatedEvents(chunks.flat());
         }
@@ -320,23 +325,41 @@ export default function App() {
           ? [...followedAuthorPubkeys, identity.pubkey]
           : [identity.pubkey];
         const dedupedAuthors = Array.from(new Set(authors));
-        const userRelays = fields.query ? [] : await getUserRelays(identity);
-        const relays = fields.query
-          ? NOTE_SEARCH_RELAYS
-          : userRelays.length > 0
+        const userRelays = await getUserRelays(identity);
+        const authorRelays =
+          userRelays.length > 0
             ? [...userRelays, ...DEFAULT_RELAYS]
             : [...DEFAULT_RELAYS, ...FALLBACK_RELAYS];
 
         const eventChunks = await Promise.all(
-          chunkArray(dedupedAuthors, AUTHOR_CHUNK_SIZE).map((authorsChunk) =>
-            findNotes(relays, {
-              ...defaultKindOneFilter,
-              authors: authorsChunk,
-            })
+          chunkArray(dedupedAuthors, AUTHOR_CHUNK_SIZE).flatMap(
+            (authorsChunk) => {
+              const jobs = [
+                findNotes(authorRelays, {
+                  ...defaultKindOneFilter,
+                  authors: authorsChunk,
+                }),
+              ];
+              if (searchFilter) {
+                jobs.push(
+                  findNotes(NOTE_SEARCH_RELAYS, {
+                    ...searchFilter,
+                    authors: authorsChunk,
+                  })
+                );
+              }
+              return jobs;
+            }
           )
         );
 
         found = mergeLocatedEvents(eventChunks.flat());
+      }
+
+      if (fields.query) {
+        found = found.filter((note) =>
+          matchesSearchQuery(note, fields.query)
+        );
       }
 
       const relayCount = found.length;
