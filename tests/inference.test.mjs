@@ -156,7 +156,10 @@ test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", as
   window.inference = {
     getFeatures: () => ({}),
     async *request(payload) {
-      assert.equal(payload.messages[0].content, systemPrompt(true, false));
+      assert.equal(
+        payload.messages[0].content,
+        systemPrompt(true, false, "es-ES"),
+      );
       assert.equal(payload.messages[1].content, `${noteText}\n\n${imageUrl}`);
       yield {
         type: "done",
@@ -169,7 +172,7 @@ test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", as
   };
   await completeChat({
     messages: [
-      { role: "system", content: systemPrompt(true, true) },
+      { role: "system", content: systemPrompt(true, true, "es-ES") },
       {
         role: "user",
         content: [
@@ -180,6 +183,54 @@ test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", as
     ],
   });
 });
+
+for (const path of ["ipa", "hosted"]) {
+  test(`${path} receives the shared language prompt for initial explanations and follow-ups`, async () => {
+    setup();
+    setWebSearchEnabled(false);
+    const prompt = systemPrompt(false, false, "es-ES");
+    const history = [
+      { role: "system", content: prompt },
+      {
+        role: "user",
+        content: "A public Nostr note:\nNote:\nNostr is an open protocol.",
+      },
+    ];
+    const received = [];
+    if (path === "ipa") {
+      window.inference = {
+        getFeatures: () => ({}),
+        async *request(payload) {
+          received.push(payload.messages);
+          yield {
+            type: "done",
+            message: { role: "assistant", content: "Test answer" },
+          };
+        },
+      };
+    } else {
+      setHostedConsent(true);
+      globalThis.fetch = async (_url, options = {}) => {
+        if (options.method === "GET") return Response.json({ ok: true });
+        received.push(JSON.parse(options.body).messages);
+        return Response.json({ content: "Test answer" });
+      };
+    }
+    for (const question of [
+      null,
+      "Was ist ein Relay?",
+      "Reply in French: what is a relay?",
+    ]) {
+      if (question) history.push({ role: "user", content: question });
+      const result = await completeChat({ messages: [...history] });
+      const request = received.at(-1);
+      assert.equal(request[0].content, prompt);
+      assert.deepEqual(request, history);
+      history.push({ role: "assistant", content: result.content });
+    }
+    assert.equal(received.length, 3);
+  });
+}
 
 test("hosted probe requires consent before sending note content", async () => {
   setup();
