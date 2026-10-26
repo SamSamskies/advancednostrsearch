@@ -1479,3 +1479,203 @@ a.open-in-link:focus-visible {
     transition: none !important;
   }
 }
+
+.note-quote {
+  display: block;
+  margin: 0.65rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--panel);
+}
+
+.note-quote-author {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  margin: 0 0 0.55rem;
+}
+
+.note-quote-author .avatar,
+.note-quote-author .avatar-empty {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+
+.note-quote-author-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.note-quote-author-name {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.88rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.note-quote-author-name:hover {
+  color: var(--signal);
+}
+
+.note-quote time {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.note-quote-content {
+  display: block;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.note-quote-loading {
+  pointer-events: none;
+  cursor: default;
+}
+
+.note-quote-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.note-link-preview {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100px;
+  margin: 0.7rem 0 0.2rem;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
+}
+
+a.note-link-preview:hover {
+  border-color: var(--signal);
+  text-decoration: none;
+}
+
+.note-link-preview-thumb {
+  flex: none;
+  width: 120px;
+  height: 100px;
+  object-fit: cover;
+  background: var(--sky);
+}
+
+.note-link-preview-thumb-empty {
+  display: block;
+  background: linear-gradient(
+    135deg,
+    var(--sky) 0%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+}
+
+.note-link-preview-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.7rem 0.85rem;
+}
+
+.note-link-preview-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.note-link-preview-icon {
+  flex: none;
+  opacity: 0.7;
+}
+
+.note-link-preview-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.note-link-preview-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.note-link-preview-loading {
+  pointer-events: none;
+}
+
+.note-link-preview-skeleton {
+  display: block;
+  width: 88%;
+  height: 0.72rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.note-link-preview-skeleton-sm {
+  width: 36%;
+  height: 0.55rem;
+}
+
+.note-link-preview-skeleton-md {
+  width: 72%;
+}
+
+@media (max-width: 520px) {
+  .note-link-preview-thumb {
+    width: 88px;
+  }
+}
+
+.note-body a.note-link-preview,
+.note-body a.note-quote-author-name {
+  color: inherit;
+  text-decoration: none;
+}
+
+.note-quote-author-copy { flex: 1; }
+
+.note-body .note-quote-permalink {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.note-quote-permalink:hover { text-decoration: underline; }
+
+.note .note-quote time { font-size: 0.68rem; }

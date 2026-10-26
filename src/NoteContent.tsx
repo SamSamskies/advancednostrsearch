@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
+import { LinkPreview } from "./LinkPreview";
+import { QuotedNote } from "./QuotedNote";
 import {
   classifyUrl,
   hyperlinkRegex,
@@ -71,8 +73,11 @@ export const NoteContent = ({
   tags = [],
   profiles = {},
   onOpen,
+  renderPreviews = true,
 }: {
   content: string;
+  /** Quotes keep links and references inline to avoid recursive embeds. */
+  renderPreviews?: boolean;
   tags?: string[][];
   profiles?: Record<string, Kind0Profile>;
   onOpen?: (kind: OpenInKind, code: string) => void;
@@ -100,6 +105,16 @@ export const NoteContent = ({
 
         const entity = parseNostrEntity(part);
         if (entity) {
+          if (renderPreviews && entity.type === "note") {
+            return (
+              <QuotedNote
+                key={index}
+                noteRef={entity}
+                profiles={profiles}
+                onOpen={onOpen}
+              />
+            );
+          }
           const kind: OpenInKind = entity.type === "profile" ? "profile" : "note";
           const label =
             entity.type === "profile"
@@ -184,6 +199,10 @@ export const NoteContent = ({
               {url}
             </video>
           );
+        }
+
+        if (renderPreviews) {
+          return <LinkPreview key={index} url={url} label={part} />;
         }
 
         if (part.match(hyperlinkRegex)) {

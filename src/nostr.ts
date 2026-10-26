@@ -391,3 +391,51 @@ export async function getKind0Profiles(
   }
   return found;
 }
+
+/** Read metadata already loaded by search without starting another relay query. */
+export function readCachedKind0Profiles(pubkeys: string[]): Record<string, Kind0Profile> {
+  const found: Record<string, Kind0Profile> = {};
+  for (const pubkey of pubkeys) {
+    const profile = kind0Cache.get(pubkey.toLowerCase());
+    if (profile) found[pubkey.toLowerCase()] = profile;
+  }
+  return found;
+}
+
+const eventByIdCache = new Map<string, Promise<Event | null>>();
+
+/** Hydrate a quote using relay hints, with the author's outbox as a fallback. */
+export function fetchEventById(
+  id: string,
+  relayHints: readonly string[] = [],
+  authorHint?: string
+): Promise<Event | null> {
+  const normalized = id.trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(normalized)) return Promise.resolve(null);
+  const author = authorHint?.trim().toLowerCase();
+  const validAuthor = author && /^[0-9a-f]{64}$/.test(author) ? author : undefined;
+  const hints = dedupeRelays(relayHints.map((url) => url.replace(/\/+$/, ""))).slice(0, 8);
+  const cacheKey = JSON.stringify([normalized, validAuthor, [...hints].sort()]);
+  const existing = eventByIdCache.get(cacheKey);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    const relays = dedupeRelays([...hints, ...DEFAULT_RELAYS, ...FALLBACK_RELAYS]);
+    const events = await queryRelays(relays, { ids: [normalized], limit: 1 });
+    const match = events.find((event) => event.id === normalized);
+    if (match) return match;
+    if (validAuthor) {
+      const outbox = await getUserRelays({ pubkey: validAuthor, relayHints: hints });
+      const extra = outbox.filter((url) => !relays.includes(url));
+      const found = await queryRelays(extra, { ids: [normalized], limit: 1 });
+      return found.find((event) => event.id === normalized) ?? null;
+    }
+    return null;
+  })().catch(() => null).then((event) => {
+    // A relay timeout should not make the reference permanently unavailable.
+    if (!event && eventByIdCache.get(cacheKey) === pending) eventByIdCache.delete(cacheKey);
+    return event;
+  });
+  eventByIdCache.set(cacheKey, pending);
+  return pending;
+}
