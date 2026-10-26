@@ -4,14 +4,18 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "ipa-tools": "0.6.0",
     "nostr-tools": "2.24.2",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
   },
   "scripts": {
     "start": "vite",
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --test tests/*.test.mjs",
     "serve": "vite preview"
   },
   "devDependencies": {

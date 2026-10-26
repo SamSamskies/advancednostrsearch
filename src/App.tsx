@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -67,6 +69,11 @@ import {
 } from "./recent-searches";
 import { RecentsDrawer } from "./RecentsDrawer";
 import { Icon, OstrichMark } from "./Icons";
+import { AskAiButton } from "./AskAiButton";
+
+const AskAiPanel = lazy(() =>
+  import("./AskAiPanel").then((module) => ({ default: module.AskAiPanel })),
+);
 
 const queryFlagEnabled = (value: string | null) => value === "1";
 
@@ -164,6 +171,7 @@ export default function App() {
   );
   const [events, setEvents] = useState<LocatedEvent[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
+  const [askNote, setAskNote] = useState<LocatedEvent | null>(null);
   const [openTarget, setOpenTarget] = useState<OpenInTarget | null>(null);
   const [profiles, setProfiles] = useState<Record<string, Kind0Profile>>({});
   const [message, setMessage] = useState<{
@@ -262,6 +270,7 @@ export default function App() {
     const includeOnlyNotesAuthorReactedTo =
       fields.include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM;
 
+    setAskNote(null);
     setIsSearching(true);
     setMessage(null);
 
@@ -416,6 +425,7 @@ export default function App() {
     setEvents([]);
     setCurrentDataLength(0);
     setOpenTarget(null);
+    setAskNote(null);
     setProfiles({});
     setMessage(null);
   };
@@ -539,7 +549,8 @@ export default function App() {
             </h1>
           </div>
           <p className="lede">
-            Search notes by author, the people they follow, or the notes they reacted to.
+            Search notes by author, the people they follow, or the notes they
+            reacted to.
           </p>
         </header>
 
@@ -757,10 +768,32 @@ export default function App() {
                   onOpen={(kind, code) => setOpenTarget({ kind, code })}
                 />
               </div>
+              <div className="note-footer-actions">
+                <AskAiButton
+                  pressed={askNote?.id === note.id}
+                  onClick={() => setAskNote(note)}
+                />
+              </div>
             </li>
           ))}
         </ol>
         <div ref={sentinelRef} className="sentinel" aria-hidden="true" />
+
+        {askNote ? (
+          <Suspense
+            fallback={
+              <p className="status" role="status">
+                Loading Ask AI…
+              </p>
+            }
+          >
+            <AskAiPanel
+              note={askNote}
+              profile={profiles[askNote.pubkey.toLowerCase()]}
+              onClose={() => setAskNote(null)}
+            />
+          </Suspense>
+        ) : null}
 
         {openTarget ? (
           <OpenInDialog
