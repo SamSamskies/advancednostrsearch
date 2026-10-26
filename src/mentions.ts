@@ -17,6 +17,10 @@ export type Mention = {
 export type NoteRef = {
   type: "note";
   code: string;
+  id: string;
+  relayHints: string[];
+  author?: string;
+  kind?: number;
 };
 
 export type NostrEntity = Mention | NoteRef;
@@ -56,8 +60,24 @@ export function parseNostrEntity(raw: string): NostrEntity | null {
           .filter((url) => url.startsWith("wss://")),
       };
     }
-    if (decoded.type === "note" || decoded.type === "nevent") {
-      return { type: "note", code };
+    if (decoded.type === "note") {
+      return { type: "note", code, id: decoded.data.toLowerCase(), relayHints: [] };
+    }
+    if (decoded.type === "nevent") {
+      return {
+        type: "note",
+        code,
+        id: decoded.data.id.toLowerCase(),
+        author: decoded.data.author?.toLowerCase(),
+        kind: decoded.data.kind,
+        relayHints: [
+          ...new Set(
+            (decoded.data.relays ?? [])
+              .map((url) => url.replace(/\/+$/, ""))
+              .filter((url) => url.startsWith("wss://"))
+          ),
+        ],
+      };
     }
   } catch {
     return null;

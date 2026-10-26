@@ -11,6 +11,19 @@ npm start
 
 Open the local URL Vite prints (usually http://localhost:5173).
 
+## Note previews
+
+Search results show quoted notes with their author, timestamp, text, and media.
+Quoted references and author names work with the existing Open In dialog.
+Web links show a title, description, and thumbnail when metadata is available.
+Unavailable notes and pages fall back to ordinary links. Each quote shows up to
+one web link preview with a smaller image; additional links and nested note
+references stay inline.
+
+`/api/preview` runs with `npm run dev` and deploys as a Vercel function. No API
+key is required. The endpoint checks public destinations and redirects, pins
+DNS addresses, and limits fetch time and response size.
+
 ## Ask AI
 
 Each note has an **Ask AI** button. It opens an explanation of the note and lets

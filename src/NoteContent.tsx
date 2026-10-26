@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
+import { LinkPreview } from "./LinkPreview";
+import { QuotedNote } from "./QuotedNote";
 import {
   classifyUrl,
   hyperlinkRegex,
@@ -71,8 +73,13 @@ export const NoteContent = ({
   tags = [],
   profiles = {},
   onOpen,
+  renderQuotes = true,
+  maxLinkPreviews = Infinity,
 }: {
   content: string;
+  /** Nested note references stay inline when rendering a quoted note. */
+  renderQuotes?: boolean;
+  maxLinkPreviews?: number;
   tags?: string[][];
   profiles?: Record<string, Kind0Profile>;
   onOpen?: (kind: OpenInKind, code: string) => void;
@@ -86,6 +93,7 @@ export const NoteContent = ({
       "gi"
     )
   );
+  let linkPreviewCount = 0;
 
   return (
     <>
@@ -100,6 +108,16 @@ export const NoteContent = ({
 
         const entity = parseNostrEntity(part);
         if (entity) {
+          if (renderQuotes && entity.type === "note") {
+            return (
+              <QuotedNote
+                key={index}
+                noteRef={entity}
+                profiles={profiles}
+                onOpen={onOpen}
+              />
+            );
+          }
           const kind: OpenInKind = entity.type === "profile" ? "profile" : "note";
           const label =
             entity.type === "profile"
@@ -184,6 +202,11 @@ export const NoteContent = ({
               {url}
             </video>
           );
+        }
+
+        if (linkPreviewCount < maxLinkPreviews) {
+          linkPreviewCount++;
+          return <LinkPreview key={index} url={url} label={part} />;
         }
 
         if (part.match(hyperlinkRegex)) {
