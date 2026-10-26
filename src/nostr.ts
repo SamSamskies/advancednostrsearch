@@ -8,7 +8,10 @@ import { VERTEX_RELAY } from "./profile-search";
 
 export type LocatedEvent = Event & { seenOn: string[] };
 
-/** NIP-50 kind 1 search. Vertex indexes profiles, not notes. */
+/** Kind 1 notes and NIP-22 comments (kind 1111), used by some clients for replies. */
+export const NOTE_KINDS = [1, 1111];
+
+/** NIP-50 note search. Vertex indexes profiles, not notes. */
 export const NOTE_SEARCH_RELAYS = [
   "wss://relay.ditto.pub",
   "wss://relay.noswhere.com",

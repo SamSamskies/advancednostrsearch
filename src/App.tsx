@@ -51,6 +51,7 @@ import {
   getUserRelays,
   matchesSearchQuery,
   mergeLocatedEvents,
+  NOTE_KINDS,
   NOTE_LIMIT,
   NOTE_SEARCH_RELAYS,
   type LocatedEvent,
@@ -278,18 +279,18 @@ export default function App() {
         setNpub(encoded);
       }
 
-      const defaultKindOneFilter: Filter = {
-        kinds: [1],
+      const defaultNoteFilter: Filter = {
+        kinds: NOTE_KINDS,
         limit: NOTE_LIMIT,
       };
       if (fields.fromDate) {
-        defaultKindOneFilter.since = convertDateToUnixTimestamp(fields.fromDate);
+        defaultNoteFilter.since = convertDateToUnixTimestamp(fields.fromDate);
       }
       if (fields.toDate) {
-        defaultKindOneFilter.until = convertDateToUnixTimestamp(fields.toDate);
+        defaultNoteFilter.until = convertDateToUnixTimestamp(fields.toDate);
       }
       const searchFilter: Filter | undefined = fields.query
-        ? { ...defaultKindOneFilter, search: fields.query }
+        ? { ...defaultNoteFilter, search: fields.query }
         : undefined;
 
       let found: LocatedEvent[] = [];
@@ -297,8 +298,8 @@ export default function App() {
       if (includeOnlyNotesAuthorReactedTo) {
         const reactionEventIds = await getUserReactionEventIds({
           identity,
-          since: defaultKindOneFilter.since,
-          until: defaultKindOneFilter.until,
+          since: defaultNoteFilter.since,
+          until: defaultNoteFilter.until,
         });
 
         if (reactionEventIds.length > 0) {
@@ -306,7 +307,7 @@ export default function App() {
           const relays = [...userRelays, ...DEFAULT_RELAYS];
           const chunks = await Promise.all(
             chunkArray(reactionEventIds, AUTHOR_CHUNK_SIZE).flatMap((ids) => {
-              const jobs = [findNotes(relays, { ...defaultKindOneFilter, ids })];
+              const jobs = [findNotes(relays, { ...defaultNoteFilter, ids })];
               if (searchFilter) {
                 jobs.push(
                   findNotes(NOTE_SEARCH_RELAYS, { ...searchFilter, ids })
@@ -336,7 +337,7 @@ export default function App() {
             (authorsChunk) => {
               const jobs = [
                 findNotes(authorRelays, {
-                  ...defaultKindOneFilter,
+                  ...defaultNoteFilter,
                   authors: authorsChunk,
                 }),
               ];
