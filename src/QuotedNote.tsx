@@ -203,7 +203,8 @@ export function QuotedNote({
       </div>
       <div className="note-quote-content">
         <NoteContent
-          renderPreviews={false}
+          renderQuotes={false}
+          maxLinkPreviews={1}
           content={content}
           tags={tags}
           profiles={profiles}

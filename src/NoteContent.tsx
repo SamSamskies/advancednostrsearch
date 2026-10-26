@@ -73,11 +73,13 @@ export const NoteContent = ({
   tags = [],
   profiles = {},
   onOpen,
-  renderPreviews = true,
+  renderQuotes = true,
+  maxLinkPreviews = Infinity,
 }: {
   content: string;
-  /** Quotes keep links and references inline to avoid recursive embeds. */
-  renderPreviews?: boolean;
+  /** Nested note references stay inline when rendering a quoted note. */
+  renderQuotes?: boolean;
+  maxLinkPreviews?: number;
   tags?: string[][];
   profiles?: Record<string, Kind0Profile>;
   onOpen?: (kind: OpenInKind, code: string) => void;
@@ -91,6 +93,7 @@ export const NoteContent = ({
       "gi"
     )
   );
+  let linkPreviewCount = 0;
 
   return (
     <>
@@ -105,7 +108,7 @@ export const NoteContent = ({
 
         const entity = parseNostrEntity(part);
         if (entity) {
-          if (renderPreviews && entity.type === "note") {
+          if (renderQuotes && entity.type === "note") {
             return (
               <QuotedNote
                 key={index}
@@ -201,7 +204,8 @@ export const NoteContent = ({
           );
         }
 
-        if (renderPreviews) {
+        if (linkPreviewCount < maxLinkPreviews) {
+          linkPreviewCount++;
           return <LinkPreview key={index} url={url} label={part} />;
         }
 
