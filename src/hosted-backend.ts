@@ -14,7 +14,7 @@ const CONSENT_KEY = "advancednostrsearch.inferenceConsent";
 const CLIENT_TOKEN_KEY = "advancednostrsearch.inferenceClient";
 const SOFT_COUNT_KEY = "advancednostrsearch.inferenceSoftCount";
 
-/** Align with server default in api/inference.ts. */
+/** Align with server default in api/inference.js. */
 const CLIENT_SOFT_DAILY = 50;
 
 const HOSTED_FEATURES: InferenceFeatures = {
@@ -177,7 +177,7 @@ export function createHostedBackend(): InferenceBackend {
             typeof (data as { http?: unknown }).http === "number"
               ? (data as { http: number }).http
               : null;
-          // Gemini high-demand / INTERNAL 5xx (ours may be 503 or wrapped 502).
+          // Provider capacity errors (ours may be 503 or wrapped 502).
           if (
             res.status === 503 ||
             res.status === 502 ||

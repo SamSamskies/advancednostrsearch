@@ -68,7 +68,7 @@ export function noteContextUserContent(
   const text = buildNoteContext(note, authorName);
   const images = noteImageUrls(note.content, note.tags);
   if (images.length === 0) return text;
-  // Images first, then the existing note-context text (Bridge / Gemini vision).
+  // Images first, then the existing note-context text for vision providers.
   return [
     ...images.map((url): ContentPart => ({ type: "image", url })),
     { type: "text", text },
