@@ -172,11 +172,6 @@ summary:focus-visible {
   min-height: 0;
 }
 
-.drawer-footer {
-  margin-top: auto;
-  padding-top: 1rem;
-}
-
 .recents-filter {
   position: relative;
   flex-shrink: 0;
@@ -212,20 +207,6 @@ summary:focus-visible {
 
 .recents-clear:hover {
   color: var(--ink);
-}
-
-.drawer-github {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--ink);
-  text-decoration: none;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.drawer-github:hover {
-  text-decoration: underline;
 }
 
 .recents-list {

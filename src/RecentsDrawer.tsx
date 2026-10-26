@@ -163,18 +163,6 @@ export function RecentsDrawer({
         ) : (
           <p className="drawer-empty">Run a search and it will show up here.</p>
         )}
-
-        <div className="drawer-footer">
-          <a
-            className="drawer-github"
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <GitHubIcon />
-            Source on GitHub
-          </a>
-        </div>
       </aside>
 
       <div className="app-main" inert={open || undefined}>
