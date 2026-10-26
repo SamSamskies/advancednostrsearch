@@ -1555,6 +1555,7 @@ a.note-quote-author-name:hover {
 
 .note-link-preview {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   width: 100%;
   max-width: 100%;
@@ -1575,15 +1576,17 @@ a.note-link-preview:hover {
 }
 
 .note-link-preview-thumb {
+  display: block;
   flex: none;
-  width: 120px;
-  height: 100px;
-  object-fit: cover;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: contain;
   background: var(--sky);
 }
 
 .note-link-preview-thumb-empty {
-  display: block;
+  aspect-ratio: 1.91;
   background: linear-gradient(
     135deg,
     var(--sky) 0%,
@@ -1655,12 +1658,6 @@ a.note-link-preview:hover {
 
 .note-link-preview-skeleton-md {
   width: 72%;
-}
-
-@media (max-width: 520px) {
-  .note-link-preview-thumb {
-    width: 88px;
-  }
 }
 
 .note-body a.note-link-preview,

@@ -132,9 +132,7 @@ export function LinkPreview({
           referrerPolicy="no-referrer"
           onError={() => setImageFailed(true)}
         />
-      ) : (
-        <span className="note-link-preview-thumb note-link-preview-thumb-empty" />
-      )}
+      ) : null}
       <span className="note-link-preview-body">
         <span className="note-link-preview-domain">
           {domain}
