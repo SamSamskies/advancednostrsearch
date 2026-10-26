@@ -33,7 +33,7 @@ export type InferenceGate = "ipa" | "hosted" | "consent" | "unavailable";
 export { hasHostedConsent, setHostedConsent };
 
 export const INFERENCE_BRIDGE_HREF =
-  "https://chromewebstore.google.com/detail/inference-bridge/ekjldffogogadhfhgkibgkfdhhikfamd";
+  "https://github.com/SamSamskies/inference-bridge#installation";
 
 const WEB_SEARCH_TOOL = { type: "web_search" } as const;
 
@@ -103,7 +103,7 @@ function errorCodeOf(error: unknown): string | undefined {
 }
 
 const BRIDGE_HINT =
-  "Or install Inference Bridge to run Ask AI in your browser instead.";
+  "Or install Inference Bridge to choose your own provider.";
 
 export function describeInferenceError(error: unknown): string {
   if (isAbortError(error)) return "Stopped.";

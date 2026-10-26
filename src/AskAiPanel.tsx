@@ -642,7 +642,8 @@ export function AskAiPanel({
                 >
                   Inference Bridge
                 </a>{" "}
-                to keep inference in your browser instead.
+                to choose your own provider instead, like OpenAI, Anthropic,
+                Gemini, OpenRouter, Ollama, and more.
               </p>
               <div className="ask-ai-consent-actions">
                 <button
