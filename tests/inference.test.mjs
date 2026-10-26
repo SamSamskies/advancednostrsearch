@@ -4,6 +4,7 @@ import {
   createHostedBackend,
   setHostedConsent,
 } from "../src/hosted-backend.ts";
+import { systemPrompt } from "../src/ask-ai-context.ts";
 import {
   completeChat,
   prepareInference,
@@ -141,6 +142,39 @@ test("text-only IPA still answers notes containing images without hosted consent
         content: [
           { type: "image", url: "https://example.com/a.png" },
           { type: "text", text: "Describe this https://example.com/a.png" },
+        ],
+      },
+    ],
+  });
+});
+
+test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", async () => {
+  setup();
+  const imageUrl = "https://example.com/imeta-only.webp";
+  const noteText =
+    "A public Nostr note:\nAuthor: Alice\n\nNote:\n(no text — media-only note)";
+  window.inference = {
+    getFeatures: () => ({}),
+    async *request(payload) {
+      assert.equal(payload.messages[0].content, systemPrompt(true, false));
+      assert.equal(payload.messages[1].content, `${noteText}\n\n${imageUrl}`);
+      yield {
+        type: "done",
+        message: { role: "assistant", content: "A photo" },
+      };
+    },
+  };
+  globalThis.fetch = () => {
+    throw new Error("No hosted request without consent");
+  };
+  await completeChat({
+    messages: [
+      { role: "system", content: systemPrompt(true, true) },
+      {
+        role: "user",
+        content: [
+          { type: "image", url: imageUrl },
+          { type: "text", text: noteText },
         ],
       },
     ],

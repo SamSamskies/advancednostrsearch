@@ -7,6 +7,7 @@ import {
   type InferenceRequest,
   type Message,
 } from "ipa-tools";
+import { SYSTEM_PROMPT_IMAGES_LINE } from "./ask-ai-context.ts";
 import {
   createHostedBackend,
   hasHostedConsent,
@@ -285,7 +286,9 @@ export async function completeChat(options: {
   };
 
   // IPA without imageInput rejects ImageParts. Prefer hosted when consented;
-  // otherwise strip images so text chat still works (URLs remain in note text).
+  // otherwise send text only: keep image URLs in the user text (including
+  // imeta-only URLs) and drop the vision system-prompt line so instructions
+  // match the payload.
   let requestMessages = messages;
   if (hasImages && isInferenceAvailable() && !ipaSupportsImages) {
     if (hasHostedConsent()) {
@@ -311,15 +314,36 @@ export async function completeChat(options: {
 
 function stripImageParts(messages: Message[]): Message[] {
   return messages.map((message) => {
+    if (message.role === "system" && typeof message.content === "string") {
+      if (!message.content.includes(SYSTEM_PROMPT_IMAGES_LINE)) return message;
+      return {
+        ...message,
+        content: message.content
+          .split("\n")
+          .filter((line) => line !== SYSTEM_PROMPT_IMAGES_LINE)
+          .join("\n"),
+      };
+    }
     if (message.role !== "user" && message.role !== "assistant") return message;
     if (!Array.isArray(message.content)) return message;
-    const text = message.content
-      .filter(
-        (part): part is Extract<ContentPart, { type: "text" }> =>
-          part.type === "text",
-      )
-      .map((part) => part.text)
-      .join("\n\n");
+    const texts: string[] = [];
+    const imageUrls: string[] = [];
+    for (const part of message.content) {
+      if (part?.type === "text") texts.push(part.text);
+      if (
+        part?.type === "image" &&
+        "url" in part &&
+        typeof part.url === "string" &&
+        part.url
+      ) {
+        imageUrls.push(part.url);
+      }
+    }
+    let text = texts.join("\n\n");
+    const extraUrls = imageUrls.filter((url) => !text.includes(url));
+    if (extraUrls.length > 0) {
+      text = text ? `${text}\n\n${extraUrls.join("\n")}` : extraUrls.join("\n");
+    }
     if (message.role === "assistant") {
       return { ...message, content: text };
     }

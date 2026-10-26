@@ -14,13 +14,14 @@ function encodeNpub(pubkey: string): string {
   }
 }
 
+export const SYSTEM_PROMPT_IMAGES_LINE =
+  "The first user message includes the note's images before the text. Look at those images when they matter.";
+
 export function systemPrompt(canSearch: boolean, hasImages: boolean): string {
   return [
     "You help someone read a public Nostr note from search results.",
     "The reader can already see the note. There are no replies in this app, so do not summarize the text back to them.",
-    hasImages
-      ? "The first user message includes the note's images before the text. Look at those images when they matter."
-      : null,
+    hasImages ? SYSTEM_PROMPT_IMAGES_LINE : null,
     "On the first reply, explain and check:",
     "- What is this referring to, and who or what is involved?",
     canSearch
