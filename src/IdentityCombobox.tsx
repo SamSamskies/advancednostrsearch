@@ -181,7 +181,7 @@ export function IdentityCombobox({
         autoComplete="off"
         spellCheck={false}
         autoFocus={autoFocus}
-        placeholder="name, npub, nprofile, nip05, or pubkey"
+        placeholder="Name, npub, or NIP-05"
         value={value}
         required={required}
         disabled={disabled}

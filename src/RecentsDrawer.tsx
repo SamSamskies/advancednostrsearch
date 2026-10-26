@@ -31,7 +31,7 @@ export function RecentsDrawer({
   const [filter, setFilter] = useState("");
   const visibleRecents = useMemo(
     () => recents.filter((recent) => matchesRecentFilter(recent, filter)),
-    [recents, filter]
+    [recents, filter],
   );
 
   useEffect(() => {
@@ -70,7 +70,17 @@ export function RecentsDrawer({
           onClick={() => onOpenChange(!open)}
         >
           <HistoryIcon />
+          <span>Recent searches</span>
         </button>
+        <a
+          className="source-link"
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <GitHubIcon />
+          <span>GitHub</span>
+        </a>
       </header>
 
       {open ? (
@@ -128,7 +138,9 @@ export function RecentsDrawer({
                       disabled={isSearching}
                       onClick={() => onRestore(recent)}
                     >
-                      <span className="recent-title">{recentTitle(recent)}</span>
+                      <span className="recent-title">
+                        {recentTitle(recent)}
+                      </span>
                       <span className="recent-summary">
                         {recentSummary(recent)}
                       </span>
@@ -149,9 +161,7 @@ export function RecentsDrawer({
             </button>
           </div>
         ) : (
-          <p className="drawer-empty">
-            Run a search and it will show up here.
-          </p>
+          <p className="drawer-empty">Run a search and it will show up here.</p>
         )}
 
         <div className="drawer-footer">
