@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -103,6 +104,26 @@ function encodeNpub(pubkey: string): string {
   }
 }
 
+function localDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function clampDateToToday(value: string, today = localDateInputValue()) {
+  if (!value) return value;
+  return value > today ? today : value;
+}
+
+function clampSearchDates(fields: SearchFields): SearchFields {
+  return {
+    ...fields,
+    fromDate: clampDateToToday(fields.fromDate),
+    toDate: clampDateToToday(fields.toDate),
+  };
+}
+
 function NoteAuthor({
   pubkey,
   createdAt,
@@ -161,8 +182,13 @@ export default function App() {
     queryParams.get("include") ?? INCLUDE_ONLY_AUTHOR_QUERY_PARAM,
   );
   const [query, setQuery] = useState(queryParams.get("query") ?? "");
-  const [fromDate, setFromDate] = useState(queryParams.get("fromDate") ?? "");
-  const [toDate, setToDate] = useState(queryParams.get("toDate") ?? "");
+  const today = localDateInputValue();
+  const [fromDate, setFromDate] = useState(
+    () => clampDateToToday(queryParams.get("fromDate") ?? ""),
+  );
+  const [toDate, setToDate] = useState(
+    () => clampDateToToday(queryParams.get("toDate") ?? ""),
+  );
   const [hasImage, setHasImage] = useState(
     queryFlagEnabled(queryParams.get("hasImage")),
   );
@@ -198,14 +224,15 @@ export default function App() {
   };
 
   const applyFields = (fields: SearchFields) => {
-    setNpub(fields.npub);
-    setInclude(fields.include);
-    setQuery(fields.query);
-    setFromDate(fields.fromDate);
-    setToDate(fields.toDate);
-    setHasImage(fields.hasImage);
-    setHasVideo(fields.hasVideo);
-    writeFieldsToUrl(fields);
+    const next = clampSearchDates(fields);
+    setNpub(next.npub);
+    setInclude(next.include);
+    setQuery(next.query);
+    setFromDate(next.fromDate);
+    setToDate(next.toDate);
+    setHasImage(next.hasImage);
+    setHasVideo(next.hasVideo);
+    writeFieldsToUrl(next);
   };
 
   const updateQueryParams = (key: string, value: string) => {
@@ -225,6 +252,14 @@ export default function App() {
     (event: ChangeEvent<HTMLInputElement>) => {
       updateQueryParams(key, event.target.value);
       set(event.target.value);
+    };
+
+  const handleDateChange =
+    (set: Dispatch<SetStateAction<string>>, key: string) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = clampDateToToday(event.target.value);
+      updateQueryParams(key, value);
+      set(value);
     };
 
   const handleIdentityChange = (value: string) => {
@@ -251,7 +286,7 @@ export default function App() {
   ) => {
     event?.preventDefault();
 
-    const fields: SearchFields = {
+    const fields: SearchFields = clampSearchDates({
       ...(fieldsOverride ?? {
         npub: event
           ? String(new FormData(event.currentTarget).get("identity") ?? npub)
@@ -263,7 +298,7 @@ export default function App() {
         hasImage,
         hasVideo,
       }),
-    };
+    });
 
     const includeNotesFromFollowedUsers =
       fields.include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM;
@@ -448,6 +483,27 @@ export default function App() {
   const handleClearRecents = () => {
     setRecents(clearRecents());
   };
+
+  useLayoutEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rawFrom = params.get("fromDate") ?? "";
+    const rawTo = params.get("toDate") ?? "";
+    const nextFrom = clampDateToToday(rawFrom);
+    const nextTo = clampDateToToday(rawTo);
+    if (nextFrom === rawFrom && nextTo === rawTo) return;
+
+    if (nextFrom) {
+      params.set("fromDate", nextFrom);
+    } else {
+      params.delete("fromDate");
+    }
+    if (nextTo) {
+      params.set("toDate", nextTo);
+    } else {
+      params.delete("toDate");
+    }
+    updateUrl(params);
+  }, []);
 
   useEffect(() => {
     const identities = recents
@@ -643,7 +699,8 @@ export default function App() {
                   <input
                     id="fromDate"
                     type="date"
-                    onChange={makeInputOnChangeHandler(setFromDate, "fromDate")}
+                    max={today}
+                    onChange={handleDateChange(setFromDate, "fromDate")}
                     value={fromDate}
                     disabled={isSearching}
                   />
@@ -658,7 +715,8 @@ export default function App() {
                   <input
                     id="toDate"
                     type="date"
-                    onChange={makeInputOnChangeHandler(setToDate, "toDate")}
+                    max={today}
+                    onChange={handleDateChange(setToDate, "toDate")}
                     value={toDate}
                     disabled={isSearching}
                   />
