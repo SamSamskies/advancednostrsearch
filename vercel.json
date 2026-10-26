@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/inference.js": { "maxDuration": 60 }
+  }
+}

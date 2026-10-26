@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import {
-  clientHref,
+  clientOpenHref,
   clientsForPlatform,
   detectClientPlatform,
-  isWebClientHref,
   type OpenInKind,
 } from "./nostr-clients";
 
@@ -65,13 +64,15 @@ export function OpenInDialog({
       </h2>
       <div className="open-in-list">
         {clients.map((client, index) => {
-          const href = clientHref(client, code, kind);
+          const href = clientOpenHref(client, code, kind);
           return (
             <a
               key={client.id}
-              className={index === 0 ? "open-in-link primary" : "open-in-link secondary"}
+              className={
+                index === 0 ? "open-in-link primary" : "open-in-link secondary"
+              }
               href={href}
-              {...(isWebClientHref(href)
+              {...(client.platform === "web"
                 ? { target: "_blank", rel: "noopener noreferrer" }
                 : {})}
             >

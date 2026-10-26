@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -12,11 +14,7 @@ import type { Filter } from "nostr-tools/filter";
 import { NoteContent } from "./NoteContent";
 import { IdentityCombobox } from "./IdentityCombobox";
 import { Avatar } from "./Avatar";
-import {
-  NoteMenuIcon,
-  OpenInDialog,
-  type OpenInTarget,
-} from "./OpenInDialog";
+import { NoteMenuIcon, OpenInDialog, type OpenInTarget } from "./OpenInDialog";
 import {
   addIdentities,
   collectMentionIdentities,
@@ -70,6 +68,12 @@ import {
   type SearchFields,
 } from "./recent-searches";
 import { RecentsDrawer } from "./RecentsDrawer";
+import { Icon, OstrichMark } from "./Icons";
+import { AskAiButton } from "./AskAiButton";
+
+const AskAiPanel = lazy(() =>
+  import("./AskAiPanel").then((module) => ({ default: module.AskAiPanel })),
+);
 
 const queryFlagEnabled = (value: string | null) => value === "1";
 
@@ -84,7 +88,7 @@ async function resolveSubmittedIdentity(raw: string): Promise<NostrIdentity> {
     }
     if (matches.length > 1) {
       throw new IdentityError(
-        "Multiple profiles match that name — pick one from the suggestions or use npub/NIP-05."
+        "Multiple profiles match that name — pick one from the suggestions or use npub/NIP-05.",
       );
     }
   }
@@ -154,23 +158,22 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [npub, setNpub] = useState(queryParams.get("npub") ?? "");
   const [include, setInclude] = useState(
-    queryParams.get("include") ?? INCLUDE_ONLY_AUTHOR_QUERY_PARAM
+    queryParams.get("include") ?? INCLUDE_ONLY_AUTHOR_QUERY_PARAM,
   );
   const [query, setQuery] = useState(queryParams.get("query") ?? "");
   const [fromDate, setFromDate] = useState(queryParams.get("fromDate") ?? "");
   const [toDate, setToDate] = useState(queryParams.get("toDate") ?? "");
   const [hasImage, setHasImage] = useState(
-    queryFlagEnabled(queryParams.get("hasImage"))
+    queryFlagEnabled(queryParams.get("hasImage")),
   );
   const [hasVideo, setHasVideo] = useState(
-    queryFlagEnabled(queryParams.get("hasVideo"))
+    queryFlagEnabled(queryParams.get("hasVideo")),
   );
   const [events, setEvents] = useState<LocatedEvent[]>([]);
   const [currentDataLength, setCurrentDataLength] = useState(0);
+  const [askNote, setAskNote] = useState<LocatedEvent | null>(null);
   const [openTarget, setOpenTarget] = useState<OpenInTarget | null>(null);
-  const [profiles, setProfiles] = useState<Record<string, Kind0Profile>>(
-    {}
-  );
+  const [profiles, setProfiles] = useState<Record<string, Kind0Profile>>({});
   const [message, setMessage] = useState<{
     text: string;
     tone: "error" | "info";
@@ -185,7 +188,7 @@ export default function App() {
       "",
       params
         ? `${window.location.pathname}?${params.toString()}`
-        : window.location.pathname
+        : window.location.pathname,
     );
   };
 
@@ -244,7 +247,7 @@ export default function App() {
 
   const handleSubmit = async (
     event?: FormEvent<HTMLFormElement>,
-    fieldsOverride?: SearchFields
+    fieldsOverride?: SearchFields,
   ) => {
     event?.preventDefault();
 
@@ -267,6 +270,7 @@ export default function App() {
     const includeOnlyNotesAuthorReactedTo =
       fields.include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM;
 
+    setAskNote(null);
     setIsSearching(true);
     setMessage(null);
 
@@ -310,11 +314,11 @@ export default function App() {
               const jobs = [findNotes(relays, { ...defaultNoteFilter, ids })];
               if (searchFilter) {
                 jobs.push(
-                  findNotes(NOTE_SEARCH_RELAYS, { ...searchFilter, ids })
+                  findNotes(NOTE_SEARCH_RELAYS, { ...searchFilter, ids }),
                 );
               }
               return jobs;
-            })
+            }),
           );
           found = mergeLocatedEvents(chunks.flat());
         }
@@ -346,28 +350,26 @@ export default function App() {
                   findNotes(NOTE_SEARCH_RELAYS, {
                     ...searchFilter,
                     authors: authorsChunk,
-                  })
+                  }),
                 );
               }
               return jobs;
-            }
-          )
+            },
+          ),
         );
 
         found = mergeLocatedEvents(eventChunks.flat());
       }
 
       if (fields.query) {
-        found = found.filter((note) =>
-          matchesSearchQuery(note, fields.query)
-        );
+        found = found.filter((note) => matchesSearchQuery(note, fields.query));
       }
 
       const relayCount = found.length;
 
       if (fields.hasImage || fields.hasVideo) {
         found = found.filter((note) =>
-          matchesMediaFilters(note, fields.hasImage, fields.hasVideo)
+          matchesMediaFilters(note, fields.hasImage, fields.hasVideo),
         );
       }
 
@@ -396,13 +398,12 @@ export default function App() {
             ...fields,
             authorName: profiles[identity.pubkey.toLowerCase()]?.displayName,
           },
-          prev
-        )
+          prev,
+        ),
       );
     } catch (error) {
       setMessage({
-        text:
-          error instanceof Error ? error.message : "Something went wrong.",
+        text: error instanceof Error ? error.message : "Something went wrong.",
         tone: "error",
       });
       setCurrentDataLength(0);
@@ -424,6 +425,7 @@ export default function App() {
     setEvents([]);
     setCurrentDataLength(0);
     setOpenTarget(null);
+    setAskNote(null);
     setProfiles({});
     setMessage(null);
   };
@@ -486,7 +488,7 @@ export default function App() {
     const observer = new IntersectionObserver((entries) => {
       if (!entries[0]?.isIntersecting) return;
       setCurrentDataLength((prev) =>
-        prev + 5 < events.length ? prev + 5 : events.length
+        prev + 5 < events.length ? prev + 5 : events.length,
       );
     });
     observer.observe(sentinel);
@@ -504,7 +506,7 @@ export default function App() {
       visible.map((note) => ({
         pubkey: note.pubkey,
         relayHints: note.seenOn.filter((url) => url.startsWith("wss://")),
-      }))
+      })),
     );
 
     let cancelled = false;
@@ -536,190 +538,270 @@ export default function App() {
       onRestore={handleRestoreRecent}
       onClear={handleClearRecents}
     >
-    <main className="page">
-      <header className="hero">
-        <h1>Advanced Nostr Search</h1>
-        <p className="lede">
-          Search notes by author, notes they reacted to, or people they follow.
-        </p>
-      </header>
-
-      <form className="search-panel" onSubmit={handleSubmit}>
-        <div className="field">
-          <label htmlFor="identity">Author</label>
-          <IdentityCombobox
-            id="identity"
-            name="identity"
-            value={npub}
-            onChange={handleIdentityChange}
-            disabled={isSearching}
-            required
-            autoFocus
-          />
-        </div>
-
-        <div className="filter-row">
-          <fieldset className="include-set" disabled={isSearching}>
-            <legend>Include</legend>
-            <label className="radio-row">
-              <input
-                type="radio"
-                name="include"
-                value={INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
-                checked={include === INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
-                onChange={(event) => handleIncludeChange(event.target.value)}
-              />
-              <span>Author notes only</span>
-            </label>
-            <label className="radio-row">
-              <input
-                type="radio"
-                name="include"
-                value={INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}
-                checked={
-                  include === INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM
-                }
-                onChange={(event) => handleIncludeChange(event.target.value)}
-              />
-              <span>Notes the author reacted to</span>
-            </label>
-            <label className="radio-row">
-              <input
-                type="radio"
-                name="include"
-                value={INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
-                checked={include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
-                onChange={(event) => handleIncludeChange(event.target.value)}
-              />
-              <span>Author and people they follow</span>
-            </label>
-          </fieldset>
-
-          <fieldset className="include-set" disabled={isSearching}>
-            <legend>Media</legend>
-            <label className="radio-row">
-              <input
-                type="checkbox"
-                name="hasImage"
-                checked={hasImage}
-                onChange={handleMediaFilterChange("hasImage", setHasImage)}
-              />
-              <span>Has image</span>
-            </label>
-            <label className="radio-row">
-              <input
-                type="checkbox"
-                name="hasVideo"
-                checked={hasVideo}
-                onChange={handleMediaFilterChange("hasVideo", setHasVideo)}
-              />
-              <span>Has video</span>
-            </label>
-          </fieldset>
-        </div>
-
-        <div className="date-row">
-          <div className="field">
-            <label htmlFor="fromDate">
-              From date <span className="optional">(optional)</span>
-            </label>
-            <input
-              id="fromDate"
-              type="date"
-              onChange={makeInputOnChangeHandler(setFromDate, "fromDate")}
-              value={fromDate}
-              disabled={isSearching}
-            />
+      <main className="page">
+        <header className="hero">
+          <div className="hero-brand">
+            <OstrichMark />
+            <h1>
+              Advanced
+              <br />
+              Nostr Search
+            </h1>
           </div>
-          <div className="field">
-            <label htmlFor="toDate">
-              To date <span className="optional">(optional)</span>
-            </label>
-            <input
-              id="toDate"
-              type="date"
-              onChange={makeInputOnChangeHandler(setToDate, "toDate")}
-              value={toDate}
-              disabled={isSearching}
-            />
+          <p className="lede">
+            Search notes by author, the people they follow, or the notes they
+            reacted to.
+          </p>
+        </header>
+
+        <form className="search-panel" onSubmit={handleSubmit}>
+          <div className="search-fields">
+            <div className="field">
+              <label htmlFor="identity">Who are you looking for?</label>
+              <div className="input-with-icon">
+                <Icon name="user" />
+                <IdentityCombobox
+                  id="identity"
+                  name="identity"
+                  value={npub}
+                  onChange={handleIdentityChange}
+                  disabled={isSearching}
+                  required
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="query">
+                Search for <span className="optional">Optional</span>
+              </label>
+              <div className="input-with-icon">
+                <Icon name="search" />
+                <input
+                  id="query"
+                  type="text"
+                  placeholder="Keywords or a phrase"
+                  onChange={makeInputOnChangeHandler(setQuery, "query")}
+                  value={query}
+                  disabled={isSearching}
+                />
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="field">
-          <label htmlFor="query">
-            Search query <span className="optional">(optional)</span>
-          </label>
-          <input
-            id="query"
-            type="text"
-            placeholder="keywords"
-            onChange={makeInputOnChangeHandler(setQuery, "query")}
-            value={query}
-            disabled={isSearching}
-          />
-        </div>
+          <div className="search-filters">
+            <fieldset className="scope-set" disabled={isSearching}>
+              <legend>Search in</legend>
+              <div className="scope-options">
+                <label className="scope-option">
+                  <input
+                    type="radio"
+                    name="include"
+                    value={INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
+                    checked={include === INCLUDE_ONLY_AUTHOR_QUERY_PARAM}
+                    onChange={(event) =>
+                      handleIncludeChange(event.target.value)
+                    }
+                  />
+                  <span>Author’s notes</span>
+                </label>
+                <label className="scope-option">
+                  <input
+                    type="radio"
+                    name="include"
+                    value={INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM}
+                    checked={
+                      include ===
+                      INCLUDE_ONLY_NOTES_AUTHOR_REACTED_TO_QUERY_PARAM
+                    }
+                    onChange={(event) =>
+                      handleIncludeChange(event.target.value)
+                    }
+                  />
+                  <span>Reacted to</span>
+                </label>
+                <label className="scope-option">
+                  <input
+                    type="radio"
+                    name="include"
+                    value={INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
+                    checked={include === INCLUDE_FOLLOWED_USERS_QUERY_PARAM}
+                    onChange={(event) =>
+                      handleIncludeChange(event.target.value)
+                    }
+                  />
+                  <span>Author + following</span>
+                </label>
+              </div>
+            </fieldset>
 
-        <div className="actions">
-          <button type="button" className="secondary" onClick={handleClear}>
-            Clear
-          </button>
-          <button type="submit" className="primary" disabled={isSearching}>
-            {isSearching ? "Searching…" : "Search"}
-          </button>
-        </div>
-      </form>
+            <div className="filter-row">
+              <div className="date-range">
+                <div className="field">
+                  <label htmlFor="fromDate">
+                    From <span className="optional">Optional</span>
+                  </label>
+                  <input
+                    id="fromDate"
+                    type="date"
+                    onChange={makeInputOnChangeHandler(setFromDate, "fromDate")}
+                    value={fromDate}
+                    disabled={isSearching}
+                  />
+                </div>
+                <span className="date-separator" aria-hidden="true">
+                  –
+                </span>
+                <div className="field">
+                  <label htmlFor="toDate">
+                    To <span className="optional">Optional</span>
+                  </label>
+                  <input
+                    id="toDate"
+                    type="date"
+                    onChange={makeInputOnChangeHandler(setToDate, "toDate")}
+                    value={toDate}
+                    disabled={isSearching}
+                  />
+                </div>
+              </div>
+              <fieldset className="media-set" disabled={isSearching}>
+                <legend>With media</legend>
+                <div className="media-options">
+                  <label className="media-option">
+                    <input
+                      type="checkbox"
+                      name="hasImage"
+                      checked={hasImage}
+                      onChange={handleMediaFilterChange(
+                        "hasImage",
+                        setHasImage,
+                      )}
+                    />
+                    <span>
+                      <Icon name="image" />
+                      Images
+                    </span>
+                  </label>
+                  <label className="media-option">
+                    <input
+                      type="checkbox"
+                      name="hasVideo"
+                      checked={hasVideo}
+                      onChange={handleMediaFilterChange(
+                        "hasVideo",
+                        setHasVideo,
+                      )}
+                    />
+                    <span>
+                      <Icon name="video" />
+                      Videos
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+          </div>
 
-      {message ? (
-        <p className={`status status-${message.tone}`} role="status">
-          {message.text}
-        </p>
-      ) : null}
-
-      <ol className="results">
-        {visibleEvents.map((note) => (
-          <li key={note.id} className="note">
+          <div className="actions">
             <button
               type="button"
-              className="note-menu"
-              aria-haspopup="dialog"
-              aria-label="Open this note in…"
-              title="Open this note in…"
-              onClick={() => {
-                try {
-                  setOpenTarget({ kind: "note", code: encodeNevent(note) });
-                } catch {}
-              }}
+              className="clear-button"
+              onClick={handleClear}
+              disabled={isSearching}
             >
-              <NoteMenuIcon />
+              Reset filters
             </button>
-            <NoteAuthor
-              pubkey={note.pubkey}
-              createdAt={note.created_at}
-              profile={profiles[note.pubkey.toLowerCase()]}
-              onOpenProfile={(code) =>
-                setOpenTarget({ kind: "profile", code })
-              }
-            />
-            <div className="note-body">
-              <NoteContent
-                content={note.content}
-                tags={note.tags}
-                profiles={profiles}
-                onOpen={(kind, code) => setOpenTarget({ kind, code })}
-              />
-            </div>
-          </li>
-        ))}
-      </ol>
-      <div ref={sentinelRef} className="sentinel" aria-hidden="true" />
+            <button
+              type="submit"
+              className="primary search-button"
+              disabled={isSearching}
+            >
+              {isSearching ? "Searching…" : "Search notes"}
+              {isSearching ? (
+                <span className="search-spinner" aria-hidden="true" />
+              ) : (
+                <Icon name="arrow" />
+              )}
+            </button>
+          </div>
+        </form>
+        <p className="search-hint">
+          The open network, a little easier to explore.
+        </p>
 
-      {openTarget ? (
-        <OpenInDialog
-          target={openTarget}
-          onClose={() => setOpenTarget(null)}
-        />
-      ) : null}
-    </main>
+        {message ? (
+          <p className={`status status-${message.tone}`} role="status">
+            {message.text}
+          </p>
+        ) : null}
+
+        <ol className="results">
+          {visibleEvents.map((note) => (
+            <li key={note.id} className="note">
+              <button
+                type="button"
+                className="note-menu"
+                aria-haspopup="dialog"
+                aria-label="Open this note in…"
+                title="Open this note in…"
+                onClick={() => {
+                  try {
+                    setOpenTarget({ kind: "note", code: encodeNevent(note) });
+                  } catch {}
+                }}
+              >
+                <NoteMenuIcon />
+              </button>
+              <NoteAuthor
+                pubkey={note.pubkey}
+                createdAt={note.created_at}
+                profile={profiles[note.pubkey.toLowerCase()]}
+                onOpenProfile={(code) =>
+                  setOpenTarget({ kind: "profile", code })
+                }
+              />
+              <div className="note-body">
+                <NoteContent
+                  content={note.content}
+                  tags={note.tags}
+                  profiles={profiles}
+                  onOpen={(kind, code) => setOpenTarget({ kind, code })}
+                />
+              </div>
+              <div className="note-footer-actions">
+                <AskAiButton
+                  pressed={askNote?.id === note.id}
+                  onClick={() => setAskNote(note)}
+                />
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div ref={sentinelRef} className="sentinel" aria-hidden="true" />
+
+        {askNote ? (
+          <Suspense
+            fallback={
+              <p className="status" role="status">
+                Loading Ask AI…
+              </p>
+            }
+          >
+            <AskAiPanel
+              note={askNote}
+              profile={profiles[askNote.pubkey.toLowerCase()]}
+              onClose={() => setAskNote(null)}
+            />
+          </Suspense>
+        ) : null}
+
+        {openTarget ? (
+          <OpenInDialog
+            target={openTarget}
+            onClose={() => setOpenTarget(null)}
+          />
+        ) : null}
+      </main>
     </RecentsDrawer>
   );
 }

@@ -178,3 +178,35 @@ export function matchesMediaFilters(
   if (hasImage) return kinds.has("image");
   return kinds.has("video");
 }
+
+const MAX_NOTE_IMAGES = 8;
+
+/**
+ * Image URLs on a note: inline http(s) links classified as images, plus `imeta`
+ * urls that are images (even when not repeated in the body). Videos skipped.
+ */
+export function noteImageUrls(
+  content: string,
+  tags: string[][] = []
+): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (raw: string | undefined) => {
+    if (!raw || urls.length >= MAX_NOTE_IMAGES) return;
+    const url = normalizeHttpUrl(raw);
+    if (!url || seen.has(url)) return;
+    if (classifyUrl(url, tags) !== "image") return;
+    seen.add(url);
+    urls.push(url);
+  };
+
+  for (const match of content.matchAll(new RegExp(hyperlinkRegex.source, "gi"))) {
+    add(match[0]);
+  }
+  for (const entry of parseImeta(tags)) {
+    add(entry.url);
+  }
+
+  return urls;
+}
