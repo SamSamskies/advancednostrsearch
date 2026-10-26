@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -482,6 +483,27 @@ export default function App() {
   const handleClearRecents = () => {
     setRecents(clearRecents());
   };
+
+  useLayoutEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rawFrom = params.get("fromDate") ?? "";
+    const rawTo = params.get("toDate") ?? "";
+    const nextFrom = clampDateToToday(rawFrom);
+    const nextTo = clampDateToToday(rawTo);
+    if (nextFrom === rawFrom && nextTo === rawTo) return;
+
+    if (nextFrom) {
+      params.set("fromDate", nextFrom);
+    } else {
+      params.delete("fromDate");
+    }
+    if (nextTo) {
+      params.set("toDate", nextTo);
+    } else {
+      params.delete("toDate");
+    }
+    updateUrl(params);
+  }, []);
 
   useEffect(() => {
     const identities = recents
