@@ -824,7 +824,7 @@ summary:focus-visible {
   max-height: min(36rem, calc(100vh - 2rem));
   overflow: auto;
   margin: auto;
-  padding: 1.25rem 1.15rem 1.1rem;
+  padding: 1.3rem 1.15rem 1.1rem;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
@@ -841,17 +841,19 @@ summary:focus-visible {
   text-align: center;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   letter-spacing: -0.03em;
 }
 
 .open-in-list {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 a.open-in-link {
+  min-height: 2.6rem;
+  padding: 0.7rem 1.1rem;
   display: flex;
   align-items: center;
   justify-content: center;

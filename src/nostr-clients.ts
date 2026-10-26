@@ -12,6 +12,8 @@ export type NostrClient = {
   url: string;
   /** Defaults to `url`. Use when the profile path differs (e.g. Primal `/p/` vs `/e/`). */
   profileUrl?: string;
+  /** Fallback for iOS apps whose custom scheme fails when not installed. */
+  appStoreUrl?: string;
 };
 
 /** Keep nevents shareable; extra relays mostly bloat the bech32 string. */
@@ -20,6 +22,7 @@ export const MAX_RELAY_HINTS = 3;
 /**
  * Kind-1 clients, ordered like njump: default handler, then native apps,
  * then web. Platform filtering happens in `clientsForPlatform`.
+ * The default nostr: handler is omitted on desktop, matching Trending Nostr.
  */
 export const NOSTR_CLIENTS: NostrClient[] = [
   {
@@ -28,10 +31,29 @@ export const NOSTR_CLIENTS: NostrClient[] = [
     platform: "native",
     url: "nostr:{code}",
   },
-  { id: "damus", name: "Damus", platform: "ios", url: "damus:{code}" },
-  { id: "nos", name: "Nos", platform: "ios", url: "nos:{code}" },
-  { id: "nostur", name: "Nostur", platform: "ios", url: "nostur:{code}" },
-  { id: "primal-ios", name: "Primal", platform: "ios", url: "primal:{code}" },
+  // HTTPS on iOS: Universal Links open the app when installed, otherwise a
+  // real webpage. Custom schemes (`damus:`, `nostur:`) make Safari show
+  // "address is invalid" when the app is missing — no App Store fallback.
+  {
+    id: "damus",
+    name: "Damus",
+    platform: "ios",
+    url: "https://damus.io/{code}",
+  },
+  {
+    id: "nostur",
+    name: "Nostur",
+    platform: "ios",
+    url: "nostur:{code}",
+    appStoreUrl: "https://apps.apple.com/app/id1672780508",
+  },
+  {
+    id: "primal-ios",
+    name: "Primal",
+    platform: "ios",
+    url: "https://primal.net/e/{code}",
+    profileUrl: "https://primal.net/p/{code}",
+  },
   {
     id: "amethyst",
     name: "Amethyst",
@@ -64,16 +86,23 @@ export const NOSTR_CLIENTS: NostrClient[] = [
     profileUrl: "https://primal.net/p/{code}",
   },
   {
-    id: "coracle",
-    name: "Coracle",
+    id: "nostrich",
+    name: "Nostrich",
     platform: "web",
-    url: "https://coracle.social/{code}",
+    url: "https://nostrich.org/e/{code}",
+    profileUrl: "https://nostrich.org/p/{code}",
   },
   {
-    id: "fevela",
-    name: "Fevela",
+    id: "ditto",
+    name: "Ditto",
     platform: "web",
-    url: "https://fevela.me/{code}",
+    url: "https://ditto.pub/{code}",
+  },
+  {
+    id: "quotestr",
+    name: "Quotestr",
+    platform: "web",
+    url: "https://quotestr.vercel.app/?nostrId={code}",
   },
   {
     id: "yakihonne",
@@ -90,7 +119,7 @@ export const NOSTR_CLIENTS: NostrClient[] = [
 ];
 
 export function detectClientPlatform(
-  userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent
+  userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent,
 ): ClientPlatform {
   if (/android/i.test(userAgent)) return "android";
   if (/iPad|iPhone|iPod/i.test(userAgent)) return "ios";
@@ -109,19 +138,39 @@ export function encodeNevent(note: LocatedEvent): string {
 export function clientHref(
   client: NostrClient,
   code: string,
-  kind: OpenInKind = "note"
+  kind: OpenInKind = "note",
 ): string {
-  const template = kind === "profile" ? (client.profileUrl ?? client.url) : client.url;
+  const template =
+    kind === "profile" ? (client.profileUrl ?? client.url) : client.url;
   return template.replaceAll("{code}", code);
 }
 
+/**
+ * href for an Open In row. Custom-scheme iOS apps with an App Store page
+ * link there instead, so a missing app opens the store rather than an
+ * invalid `nostur:` address.
+ */
+export function clientOpenHref(
+  client: NostrClient,
+  code: string,
+  kind: OpenInKind = "note",
+): string {
+  const href = clientHref(client, code, kind);
+  if (client.appStoreUrl && !isWebClientHref(href)) {
+    return client.appStoreUrl;
+  }
+  return href;
+}
+
 export function clientsForPlatform(platform: ClientPlatform): NostrClient[] {
-  const eligible = NOSTR_CLIENTS.filter(
-    (client) =>
+  const eligible = NOSTR_CLIENTS.filter((client) => {
+    if (client.platform === "native" && platform === "web") return false;
+    return (
       client.platform === "native" ||
       client.platform === "web" ||
       client.platform === platform
-  );
+    );
+  });
 
   const seen = new Set<string>();
   const clients: NostrClient[] = [];
