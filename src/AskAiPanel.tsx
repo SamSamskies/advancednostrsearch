@@ -29,6 +29,7 @@ import {
   systemPrompt,
   noteContextUserContent,
   patchNoteContextHistory,
+  preferredResponseLanguage,
 } from "./ask-ai-context";
 
 function linkifyInferenceBridge(text: string) {
@@ -61,6 +62,7 @@ type VisibleMessage =
   | { id: string; role: "error"; content: string };
 
 type Thread = {
+  responseLanguage: string;
   history: InferenceMessage[];
   visible: VisibleMessage[];
   introStarted: boolean;
@@ -76,7 +78,12 @@ function nextId(): string {
 }
 
 function emptyThread(): Thread {
-  return { history: [], visible: [], introStarted: false };
+  return {
+    responseLanguage: preferredResponseLanguage(),
+    history: [],
+    visible: [],
+    introStarted: false,
+  };
 }
 
 function getThread(noteId: string): Thread {
@@ -89,6 +96,7 @@ function getThread(noteId: string): Thread {
 
 function snapshot(thread: Thread): Thread {
   return {
+    responseLanguage: thread.responseLanguage,
     history: [...thread.history],
     visible: [...thread.visible],
     introStarted: thread.introStarted,
@@ -328,11 +336,19 @@ export function AskAiPanel({
     const current = getThread(noteId);
     if (current.history.length === 0) {
       current.history = [
-        { role: "system", content: systemPrompt(canSearch, hasImages) },
+        {
+          role: "system",
+          content: systemPrompt(canSearch, hasImages, current.responseLanguage),
+        },
         { role: "user", content: contextContent },
       ];
     } else {
-      patchNoteContextHistory(current.history, contextContent, canSearch);
+      patchNoteContextHistory(
+        current.history,
+        contextContent,
+        canSearch,
+        current.responseLanguage,
+      );
     }
 
     let userVisibleId: string | undefined;
@@ -498,7 +514,14 @@ export function AskAiPanel({
     const current = getThread(note.id);
     const canSearch = canSearchWeb();
     const nextContent = noteContextUserContent(note, authorName);
-    if (!patchNoteContextHistory(current.history, nextContent, canSearch))
+    if (
+      !patchNoteContextHistory(
+        current.history,
+        nextContent,
+        canSearch,
+        current.responseLanguage,
+      )
+    )
       return;
 
     const restartingIntro =

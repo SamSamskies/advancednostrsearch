@@ -6,6 +6,22 @@ import type { LocatedEvent } from "./nostr";
 
 const MAX_NOTE_CHARS = 8000;
 
+export function preferredResponseLanguage(
+  browser: Partial<Pick<Navigator, "languages" | "language">> | undefined =
+    typeof navigator === "undefined" ? undefined : navigator,
+): string {
+  for (const language of [...(browser?.languages ?? []), browser?.language]) {
+    if (!language?.trim()) continue;
+    try {
+      const [locale] = Intl.getCanonicalLocales(language.trim());
+      if (locale) return locale;
+    } catch {
+      // Ignore unusable language tags and try the next browser preference.
+    }
+  }
+  return "en";
+}
+
 function encodeNpub(pubkey: string): string {
   try {
     return nip19.npubEncode(pubkey);
@@ -17,10 +33,19 @@ function encodeNpub(pubkey: string): string {
 export const SYSTEM_PROMPT_IMAGES_LINE =
   "The first user message includes the note's images before the text. Look at those images when they matter.";
 
-export function systemPrompt(canSearch: boolean, hasImages: boolean): string {
+export function systemPrompt(
+  canSearch: boolean,
+  hasImages: boolean,
+  responseLanguage = "en",
+): string {
   return [
     "You help someone read a public Nostr note from search results.",
     "The reader can already see the note. There are no replies in this app, so do not summarize the text back to them.",
+    "Choose the response language in this priority order:",
+    "1. Follow an explicit language request from the reader, including an earlier request that still applies (for example, 'reply in French').",
+    "2. Otherwise, use the language of the reader's latest follow-up question.",
+    `3. For the initial explanation, or when there is no stronger signal, use the reader's browser language: ${responseLanguage}.`,
+    "The first user message is note context, not a reader question or language request. The note's language and the English context labels do not determine the response language. For example, explain an English note in Spanish when the browser language is Spanish.",
     hasImages ? SYSTEM_PROMPT_IMAGES_LINE : null,
     "On the first reply, explain and check:",
     "- What is this referring to, and who or what is involved?",
@@ -79,11 +104,16 @@ export function patchNoteContextHistory(
   history: InferenceMessage[],
   content: string | ContentPart[],
   canSearch: boolean,
+  responseLanguage = "en",
 ): boolean {
   const system = history[0];
   const context = history[1];
   if (system?.role !== "system" || context?.role !== "user") return false;
-  const nextSystem = systemPrompt(canSearch, Array.isArray(content));
+  const nextSystem = systemPrompt(
+    canSearch,
+    Array.isArray(content),
+    responseLanguage,
+  );
   const contentSame =
     JSON.stringify(context.content) === JSON.stringify(content);
   const systemSame = system.content === nextSystem;

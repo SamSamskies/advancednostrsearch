@@ -32,6 +32,11 @@ Conversations stay in memory for the current page session. Images on the note
 are included when the inference provider supports them; Markdown links open in
 a new tab. The panel's web-search checkbox is saved in the browser.
 
+Generated answers default to the browser's preferred language (English when
+unavailable), regardless of the note's language. An explicit language request
+takes priority, followed by the language of the reader's follow-up question.
+This applies to both inference paths; panel labels stay in English.
+
 Ask AI uses an installed [Inference Bridge](https://github.com/SamSamskies/inference-bridge)
 or another Inference Provider API extension first. No server credentials are
 needed for that path.
