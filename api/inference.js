@@ -10,6 +10,8 @@
  * 'startsWith')`.
  */
 
+import dns from "node:dns/promises";
+import { isIP } from "node:net";
 import { envInt, loadLocalEnvFallback, todayUtc } from "../lib/env.js";
 import {
   applyCors,
@@ -219,6 +221,16 @@ function contentsHaveFileData(contents) {
   );
 }
 
+/**
+ * DNS lookup used before fetching note images. Tests replace `lookupAll` so
+ * they can simulate public vs private answers without a network.
+ */
+export const imageFetchDns = {
+  lookupAll(hostname) {
+    return dns.lookup(hostname, { all: true });
+  },
+};
+
 /** Block localhost, RFC1918, link-local, and cloud-metadata targets (SSRF). */
 function isPrivateOrLocalHostname(hostname) {
   const host = String(hostname || "")
@@ -259,7 +271,30 @@ function isPrivateOrLocalHostname(hostname) {
   return false;
 }
 
-function assertSafeImageFetchUrl(fileUri, base) {
+async function assertPublicResolvedAddresses(hostname) {
+  const host = String(hostname || "")
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  if (isIP(host)) return;
+
+  let records;
+  try {
+    records = await imageFetchDns.lookupAll(host);
+  } catch {
+    throw new Error("image_fetch_url");
+  }
+  if (!Array.isArray(records) || records.length === 0) {
+    throw new Error("image_fetch_url");
+  }
+  for (const record of records) {
+    const address = record?.address;
+    if (!address || isPrivateOrLocalHostname(address)) {
+      throw new Error("image_fetch_url");
+    }
+  }
+}
+
+async function assertSafeImageFetchUrl(fileUri, base) {
   let parsed;
   try {
     parsed = base ? new URL(fileUri, base) : new URL(fileUri);
@@ -275,11 +310,13 @@ function assertSafeImageFetchUrl(fileUri, base) {
   if (isPrivateOrLocalHostname(parsed.hostname)) {
     throw new Error("image_fetch_url");
   }
+  // Literal IPs are covered above; names like 127.0.0.1.nip.io need DNS.
+  await assertPublicResolvedAddresses(parsed.hostname);
   return parsed;
 }
 
 async function fetchImageAsInlineData(fileUri, mimeType, signal) {
-  let current = assertSafeImageFetchUrl(fileUri);
+  let current = await assertSafeImageFetchUrl(fileUri);
   let res;
 
   for (let hop = 0; hop <= MAX_IMAGE_FETCH_REDIRECTS; hop++) {
@@ -299,7 +336,7 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
     const location = res.headers.get("location");
     if (!location) throw new Error("image_fetch_url");
     // Re-validate every hop so redirects cannot pivot into private/metadata nets.
-    current = assertSafeImageFetchUrl(location, current.href);
+    current = await assertSafeImageFetchUrl(location, current.href);
   }
 
   if (!res || (res.status >= 300 && res.status < 400)) {

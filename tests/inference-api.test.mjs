@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
-import handler from "../api/inference.js";
+import handler, { imageFetchDns } from "../api/inference.js";
 
 const originalFetch = globalThis.fetch;
+const originalLookupAll = imageFetchDns.lookupAll;
 const envNames = [
   "INFERENCE_API_KEY",
   "GEMINI_API_KEY",
@@ -24,9 +25,13 @@ beforeEach(() => {
   globalThis.fetch = () => {
     throw new Error("Unexpected network call in test");
   };
+  imageFetchDns.lookupAll = async () => [
+    { address: "203.0.113.10", family: 4 },
+  ];
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  imageFetchDns.lookupAll = originalLookupAll;
   for (const [key, value] of Object.entries(previousEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -168,6 +173,41 @@ test("hosted image input becomes inline bytes and web search can be disabled", a
   });
   assert.equal(response.statusCode, 200);
   assert.equal(calls.length, 2);
+});
+
+test("hosted image fetch does not request hostnames that resolve to private addresses", async () => {
+  imageFetchDns.lookupAll = async () => [
+    { address: "127.0.0.1", family: 4 },
+  ];
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push(String(url));
+    const body = JSON.parse(options.body);
+    assert.deepEqual(body.contents[0].parts[0], {
+      fileData: {
+        fileUri: "https://127.0.0.1.nip.io/photo.png",
+        mimeType: "image/png",
+      },
+    });
+    return success("An image.");
+  };
+  const response = await call({
+    body: {
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", url: "https://127.0.0.1.nip.io/photo.png" },
+            { type: "text", text: "Describe this" },
+          ],
+        },
+      ],
+      webSearch: false,
+    },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /^https:\/\/generativelanguage\.googleapis\.com\//);
 });
 
 test("successful requests consume the browser allowance", async () => {
