@@ -454,9 +454,20 @@ summary:focus-visible {
   color: #777770;
 }
 .search-panel input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  max-width: 100%;
   padding: 0.75rem 0.65rem;
   height: 2.9rem;
   font-size: 0.8rem;
+}
+.search-panel input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1lh;
+  text-align: left;
+}
+.search-panel input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
 }
 .search-panel input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 0.5;
@@ -916,6 +927,13 @@ a.open-in-link:focus-visible {
   .search-filters {
     padding: 0 1.1rem 1.25rem;
   }
+  .date-range {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  .date-separator {
+    display: none;
+  }
   .scope-options {
     grid-template-columns: 1fr 0.8fr 1.15fr;
     gap: 2px;
@@ -943,16 +961,6 @@ a.open-in-link:focus-visible {
   .search-panel input[type="text"],
   .search-panel input[type="date"] {
     font-size: 1rem;
-  }
-}
-
-@media (max-width: 360px) {
-  .date-range {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  .date-separator {
-    display: none;
   }
 }
 
