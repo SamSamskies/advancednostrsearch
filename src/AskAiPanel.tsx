@@ -71,6 +71,7 @@ type Thread = {
   history: InferenceMessage[];
   visible: VisibleMessage[];
   introStarted: boolean;
+  searchingWeb: boolean;
 };
 
 const threads = new Map<string, Thread>();
@@ -88,6 +89,7 @@ function emptyThread(): Thread {
     history: [],
     visible: [],
     introStarted: false,
+    searchingWeb: false,
   };
 }
 
@@ -105,6 +107,7 @@ function snapshot(thread: Thread): Thread {
     history: [...thread.history],
     visible: [...thread.visible],
     introStarted: thread.introStarted,
+    searchingWeb: thread.searchingWeb,
   };
 }
 
@@ -236,7 +239,9 @@ export function AskAiPanel({
   const contextHasImages = Array.isArray(
     noteContextUserContent(note, authorName, includeImages),
   );
-  const maySearchWeb = canSearchWeb(contextHasImages);
+  const maySearchWeb = busy
+    ? thread.searchingWeb
+    : canSearchWeb(contextHasImages);
 
   function persist(noteId: string, next: Thread) {
     threads.set(noteId, next);
@@ -343,6 +348,7 @@ export function AskAiPanel({
     const canSearch = canSearchWeb(hasImages);
 
     const current = getThread(noteId);
+    current.searchingWeb = canSearch;
     if (current.history.length === 0) {
       current.history = [
         {
