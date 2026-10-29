@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
 import handler, { imageFetchDns } from "../api/inference.js";
+import { SYSTEM_PROMPT_IMAGES_LINE } from "../src/ask-ai-context.ts";
 
 const originalFetch = globalThis.fetch;
 const originalLookup = imageFetchDns.lookupAll;
@@ -135,16 +136,30 @@ test("Ollama receives downloaded and inline images as base64", async () => {
   assert.equal(calls.length, 2);
 });
 
-test("blocked image destinations never reach Ollama or a private host", async () => {
+test("blocked image destinations are not fetched and Ollama still explains the note", async () => {
   imageFetchDns.lookupAll = async () => [{ address: "127.0.0.1", family: 4 }];
-  let requests = 0;
-  globalThis.fetch = async () => { requests++; return success(); };
-  const response = await call({ body: { messages: [{ role: "user", content: [
-    { type: "image", url: "https://127.0.0.1.nip.io/photo.png" },
-    { type: "text", text: "Describe this" },
-  ] }] } });
-  assert.equal(response.statusCode, 502);
-  assert.equal(requests, 0);
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(String(url));
+    assert.equal(url, "https://ollama.com/api/chat");
+    assert.deepEqual(JSON.parse(options.body).messages, [
+      { role: "system", content: "Explain a public Nostr note." },
+      {
+        role: "user",
+        content: "Describe this\n\nhttps://127.0.0.1.nip.io/photo.png",
+      },
+    ]);
+    return success();
+  };
+  const response = await call({ body: { webSearch: false, messages: [
+    { role: "system", content: `Explain a public Nostr note.\n${SYSTEM_PROMPT_IMAGES_LINE}` },
+    { role: "user", content: [
+      { type: "image", url: "https://127.0.0.1.nip.io/photo.png" },
+      { type: "text", text: "Describe this" },
+    ] },
+  ] } });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(requests, ["https://ollama.com/api/chat"]);
 });
 
 test("web search tools execute on ollama.com and append sources to the final answer", async () => {
