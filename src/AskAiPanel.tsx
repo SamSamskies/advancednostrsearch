@@ -518,6 +518,15 @@ export function AskAiPanel({
 
   useEffect(() => {
     const current = getThread(note.id);
+    const restartingIntro =
+      !current.visible.some((message) => message.role === "user") &&
+      current.visible.some(
+        (message) =>
+          message.role === "assistant" && message.pending && !message.content,
+      );
+    // Don't rewrite the in-flight transcript; the next runTurn applies this.
+    if (isTurnLive(note.id) && !restartingIntro) return;
+
     const canSearch = canSearchWeb();
     const nextContent = noteContextUserContent(note, authorName, includeImages);
     if (
@@ -530,12 +539,6 @@ export function AskAiPanel({
     )
       return;
 
-    const restartingIntro =
-      !current.visible.some((message) => message.role === "user") &&
-      current.visible.some(
-        (message) =>
-          message.role === "assistant" && message.pending && !message.content,
-      );
     if (restartingIntro) {
       current.visible = current.visible.filter(
         (message) =>
