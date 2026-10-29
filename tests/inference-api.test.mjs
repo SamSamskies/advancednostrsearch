@@ -167,6 +167,63 @@ test("hosted request honors web search, separates the system prompt, and include
   assert.equal(response.headers["Cache-Control"], "no-store");
 });
 
+test("hosted image redirects discard the previous body before the next hop", async () => {
+  const destroyed = [];
+  const imageCalls = [];
+  mock.method(https, "request", (options, onResponse) => {
+    const index = imageCalls.length;
+    imageCalls.push(options);
+    const req = new EventEmitter();
+    req.end = () =>
+      queueMicrotask(() => {
+        const incoming = new EventEmitter();
+        incoming.destroy = () => {
+          destroyed[index] = true;
+        };
+        if (index === 0) {
+          incoming.statusCode = 302;
+          incoming.headers = {
+            location: "https://cdn.example.test/photo.png",
+          };
+          onResponse(incoming);
+          return;
+        }
+        incoming.statusCode = 200;
+        incoming.headers = { "content-type": "image/png" };
+        onResponse(incoming);
+        incoming.emit("data", Buffer.from([1, 2, 3]));
+        incoming.emit("end");
+      });
+    return req;
+  });
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.deepEqual(body.contents[0].parts[0], {
+      inlineData: { mimeType: "image/png", data: "AQID" },
+    });
+    return success("An image.");
+  };
+  const response = await call({
+    body: {
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", url: "https://images.example.test/old.png" },
+            { type: "text", text: "Describe this" },
+          ],
+        },
+      ],
+      webSearch: false,
+    },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(imageCalls.length, 2);
+  assert.equal(destroyed[0], true);
+  assert.equal(imageCalls[0].headers.Host, "images.example.test");
+  assert.equal(imageCalls[1].headers.Host, "cdn.example.test");
+});
+
 test("hosted image input becomes inline bytes and web search can be disabled", async () => {
   const imageCalls = mockPinnedHttpsImage(new Uint8Array([1, 2, 3]));
   const calls = [];

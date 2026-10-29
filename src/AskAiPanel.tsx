@@ -35,6 +35,7 @@ import {
   noteContextUserContent,
   patchNoteContextHistory,
   preferredResponseLanguage,
+  systemPromptChanged,
 } from "./ask-ai-context";
 
 function linkifyInferenceBridge(text: string) {
@@ -536,6 +537,10 @@ export function AskAiPanel({
 
     const nextContent = noteContextUserContent(note, authorName, includeImages);
     const canSearch = canSearchWeb(Array.isArray(nextContent));
+    const previousSystem =
+      current.history[0]?.role === "system"
+        ? current.history[0].content
+        : undefined;
     if (
       !patchNoteContextHistory(
         current.history,
@@ -545,6 +550,15 @@ export function AskAiPanel({
       )
     )
       return;
+
+    // Author and note-text updates rewrite note context without changing
+    // search/image instructions. Keep the intro; follow-ups pick up the
+    // patched history.
+    const nextSystem =
+      current.history[0]?.role === "system"
+        ? current.history[0].content
+        : undefined;
+    if (!systemPromptChanged(previousSystem, nextSystem)) return;
 
     abortTurn(note.id);
     current.history = [];

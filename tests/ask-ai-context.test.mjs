@@ -7,6 +7,7 @@ import {
   patchNoteContextHistory,
   preferredResponseLanguage,
   systemPrompt,
+  systemPromptChanged,
   SYSTEM_PROMPT_IMAGES_LINE,
 } from "../src/ask-ai-context.ts";
 import { noteImageUrls } from "../src/media.ts";
@@ -146,9 +147,11 @@ test("updating author metadata or web search preserves language and follow-up hi
   ];
   const followups = history.slice(2);
   const updated = noteContextUserContent(note, "Alice");
+  const previousSystem = history[0].content;
   assert.equal(patchNoteContextHistory(history, updated, false, "es-ES"), true);
   assert.ok(history[0].content.includes("You cannot search the web"));
   assert.ok(history[0].content.includes("browser language: es-ES"));
+  assert.equal(systemPromptChanged(previousSystem, history[0].content), true);
   assert.equal(history[1].content, updated);
   assert.deepEqual(history.slice(2), followups);
   assert.equal(patchNoteContextHistory(history, updated, false, "es-ES"), false);
@@ -160,6 +163,32 @@ test("updating author metadata or web search preserves language and follow-up hi
   assert.equal(patchNoteContextHistory(history, withImage, true, "es-ES"), true);
   assert.equal(history[0].content, systemPrompt(true, true, "es-ES"));
   assert.deepEqual(history.slice(2), followups);
+});
+
+test("author edits patch context without looking like a mode change", () => {
+  const initial = noteContextUserContent(note, "Unknown");
+  const updated = noteContextUserContent(note, "Alice");
+  const history = [
+    { role: "system", content: systemPrompt(true, false, "es-ES") },
+    { role: "user", content: initial },
+    { role: "assistant", content: "An open social protocol." },
+  ];
+  const previousSystem = history[0].content;
+  assert.equal(patchNoteContextHistory(history, updated, true, "es-ES"), true);
+  assert.equal(systemPromptChanged(previousSystem, history[0].content), false);
+  assert.equal(history[1].content, updated);
+
+  const withImage = [
+    { type: "image", url: "https://example.com/photo.png" },
+    { type: "text", text: updated },
+  ];
+  const beforeImages = history[0].content;
+  assert.equal(patchNoteContextHistory(history, withImage, true, "es-ES"), true);
+  assert.equal(systemPromptChanged(beforeImages, history[0].content), true);
+
+  const beforeSearchOff = history[0].content;
+  assert.equal(patchNoteContextHistory(history, withImage, false, "es-ES"), true);
+  assert.equal(systemPromptChanged(beforeSearchOff, history[0].content), true);
 });
 
 test("images off keeps inline and imeta-only links once, including media-only notes", () => {
