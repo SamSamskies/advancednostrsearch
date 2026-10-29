@@ -576,9 +576,8 @@ export function AskAiPanel({
   function handleClear() {
     if (busy) return;
     abortTurn(note.id);
-    const fresh = emptyThread();
-    persist(note.id, fresh);
-    void runTurn(null);
+    persist(note.id, emptyThread());
+    setDraft("");
   }
 
   function handleStop() {
@@ -784,10 +783,7 @@ export function AskAiPanel({
               <button
                 type="button"
                 className="ask-ai-secondary"
-                disabled={
-                  busy ||
-                  (thread.introStarted && thread.visible.length === 0 && !draft)
-                }
+                disabled={busy || (thread.visible.length === 0 && !draft)}
                 onClick={handleClear}
               >
                 Clear
