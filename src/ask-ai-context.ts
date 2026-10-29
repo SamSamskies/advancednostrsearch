@@ -5,6 +5,29 @@ import { noteImageUrls } from "./media.ts";
 import type { LocatedEvent } from "./nostr";
 
 const MAX_NOTE_CHARS = 8000;
+const CURRENT_TIME_LINE = /^The current date and time is .+$/m;
+
+/** Local civil time with a numeric offset, at minute or second precision. */
+export function formatPromptDateTime(
+  date: Date,
+  precision: "minute" | "second" = "second",
+): string {
+  const pad2 = (value: number) => String(value).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  const hour = pad2(date.getHours());
+  const minute = pad2(date.getMinutes());
+  const second = precision === "minute" ? "00" : pad2(date.getSeconds());
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${sign}${pad2(Math.floor(absoluteOffset / 60))}:${pad2(absoluteOffset % 60)}`;
+}
+
+function promptWithoutClock(prompt: string): string {
+  return prompt.replace(CURRENT_TIME_LINE, "");
+}
 
 export function preferredResponseLanguage(
   browser: Partial<Pick<Navigator, "languages" | "language">> | undefined =
@@ -22,13 +45,13 @@ export function preferredResponseLanguage(
   return "en";
 }
 
-/** True when search/image instructions differ. */
+/** True when instructions differ, ignoring the current time. */
 export function systemPromptChanged(
   previous: string | undefined,
   next: string | undefined,
 ): boolean {
   if (!previous || !next) return false;
-  return previous !== next;
+  return promptWithoutClock(previous) !== promptWithoutClock(next);
 }
 
 function encodeNpub(pubkey: string): string {
@@ -46,9 +69,11 @@ export function systemPrompt(
   canSearch: boolean,
   hasImages: boolean,
   responseLanguage = "en",
+  now = new Date(),
 ): string {
   return [
     "You help someone read a public Nostr note from search results.",
+    `The current date and time is ${formatPromptDateTime(now, "minute")}.`,
     "The reader can already see the note. There are no replies in this app, so do not summarize the text back to them.",
     "Choose the response language in this priority order:",
     "1. Follow an explicit language request from the reader, including an earlier request that still applies (for example, 'reply in French').",
@@ -88,7 +113,7 @@ export function buildNoteContext(
   return [
     "A public Nostr note:",
     `Author: ${authorName}${npub ? ` (${npub})` : ""}`,
-    `Posted: ${new Date(note.created_at * 1000).toISOString()}`,
+    `Posted: ${formatPromptDateTime(new Date(note.created_at * 1000))}`,
     "",
     "Note:",
     truncated,
@@ -119,6 +144,7 @@ export function patchNoteContextHistory(
   content: string | ContentPart[],
   canSearch: boolean,
   responseLanguage = "en",
+  now = new Date(),
 ): boolean {
   const system = history[0];
   const context = history[1];
@@ -127,12 +153,15 @@ export function patchNoteContextHistory(
     canSearch,
     Array.isArray(content),
     responseLanguage,
+    now,
   );
   const contentSame =
     JSON.stringify(context.content) === JSON.stringify(content);
-  const systemSame = system.content === nextSystem;
-  if (contentSame && systemSame) return false;
+  const instructionsChanged = systemPromptChanged(system.content, nextSystem);
+  // Refresh every turn even when only the clock changed. Callers use the
+  // return value to detect context/instruction changes, not clock ticks.
   history[0] = { role: "system", content: nextSystem };
+  if (contentSame && !instructionsChanged) return false;
   history[1] = { role: "user", content };
   return true;
 }
