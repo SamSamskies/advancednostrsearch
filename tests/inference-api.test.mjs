@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import test, { afterEach, beforeEach } from "node:test";
+import { EventEmitter } from "node:events";
+import https from "node:https";
+import test, { afterEach, beforeEach, mock } from "node:test";
 import handler, { imageFetchDns } from "../api/inference.js";
 import { SYSTEM_PROMPT_IMAGES_LINE } from "../src/ask-ai-context.ts";
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   ];
 });
 afterEach(() => {
+  mock.restoreAll();
   globalThis.fetch = originalFetch;
   imageFetchDns.lookupAll = originalLookupAll;
   for (const [key, value] of Object.entries(previousEnv)) {
@@ -40,6 +43,26 @@ afterEach(() => {
     else process.env[key] = value;
   }
 });
+
+function mockPinnedHttpsImage(bytes, contentType = "image/png") {
+  const calls = [];
+  mock.method(https, "request", (options, onResponse) => {
+    calls.push(options);
+    const req = new EventEmitter();
+    req.end = () =>
+      queueMicrotask(() => {
+        const incoming = new EventEmitter();
+        incoming.statusCode = 200;
+        incoming.headers = { "content-type": contentType };
+        incoming.destroy = () => {};
+        onResponse(incoming);
+        incoming.emit("data", Buffer.from(bytes));
+        incoming.emit("end");
+      });
+    return req;
+  });
+  return calls;
+}
 const messages = [
   { role: "system", content: "Explain the note" },
   { role: "user", content: "What is Nostr?" },
@@ -145,14 +168,10 @@ test("hosted request honors web search, separates the system prompt, and include
 });
 
 test("hosted image input becomes inline bytes and web search can be disabled", async () => {
+  const imageCalls = mockPinnedHttpsImage(new Uint8Array([1, 2, 3]));
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push(url);
-    if (url === "https://images.example.test/photo.png") {
-      return new Response(new Uint8Array([1, 2, 3]), {
-        headers: { "Content-Type": "image/png" },
-      });
-    }
     const body = JSON.parse(options.body);
     assert.equal(body.tools, undefined);
     assert.deepEqual(body.contents[0].parts[0], {
@@ -175,13 +194,19 @@ test("hosted image input becomes inline bytes and web search can be disabled", a
     },
   });
   assert.equal(response.statusCode, 200);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
+  assert.equal(imageCalls[0].hostname, "203.0.113.10");
+  assert.equal(imageCalls[0].headers.Host, "images.example.test");
+  assert.equal(imageCalls[0].servername, "images.example.test");
 });
 
 test("hosted image fetch does not request hostnames that resolve to private addresses", async () => {
   imageFetchDns.lookupAll = async () => [
     { address: "127.0.0.1", family: 4 },
   ];
+  const imageRequests = mock.method(https, "request", () => {
+    throw new Error("must not fetch a private image");
+  });
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push(String(url));
@@ -215,6 +240,7 @@ test("hosted image fetch does not request hostnames that resolve to private addr
   });
   assert.equal(response.statusCode, 200);
   assert.equal(calls.length, 1);
+  assert.equal(imageRequests.mock.callCount(), 0);
   assert.match(calls[0], /^https:\/\/generativelanguage\.googleapis\.com\//);
 });
 

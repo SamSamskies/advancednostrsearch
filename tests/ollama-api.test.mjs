@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import test, { afterEach, beforeEach } from "node:test";
+import { EventEmitter } from "node:events";
+import https from "node:https";
+import test, { afterEach, beforeEach, mock } from "node:test";
 import handler, { imageFetchDns } from "../api/inference.js";
 import { SYSTEM_PROMPT_IMAGES_LINE } from "../src/ask-ai-context.ts";
 
@@ -26,6 +28,7 @@ beforeEach(() => {
   globalThis.fetch = () => { throw new Error("Unexpected fetch"); };
 });
 afterEach(() => {
+  mock.restoreAll();
   Date.now = originalNow;
   globalThis.fetch = originalFetch;
   imageFetchDns.lookupAll = originalLookup;
@@ -34,6 +37,26 @@ afterEach(() => {
     else process.env[name] = previous[i];
   });
 });
+
+function mockPinnedHttpsImage(bytes, contentType = "image/png") {
+  const calls = [];
+  mock.method(https, "request", (options, onResponse) => {
+    calls.push(options);
+    const req = new EventEmitter();
+    req.end = () =>
+      queueMicrotask(() => {
+        const incoming = new EventEmitter();
+        incoming.statusCode = 200;
+        incoming.headers = { "content-type": contentType };
+        incoming.destroy = () => {};
+        onResponse(incoming);
+        incoming.emit("data", Buffer.from(bytes));
+        incoming.emit("end");
+      });
+    return req;
+  });
+  return calls;
+}
 
 const messages = [
   { role: "system", content: "Explain the note" },
@@ -117,12 +140,10 @@ test("provider-specific model takes precedence and ordinary model tags pass thro
 });
 
 test("Ollama receives downloaded and inline images as base64", async () => {
+  const imageCalls = mockPinnedHttpsImage(new Uint8Array([1, 2, 3]));
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push(url);
-    if (url === "https://images.example.test/photo.png") {
-      return new Response(new Uint8Array([1, 2, 3]), { headers: { "Content-Type": "image/png" } });
-    }
     assert.equal(url, "https://ollama.com/api/chat");
     assert.deepEqual(JSON.parse(options.body).messages, [{ role: "user", content: "Describe these", images: ["AQID", "BAUG"] }]);
     return success();
@@ -133,11 +154,17 @@ test("Ollama receives downloaded and inline images as base64", async () => {
     { type: "text", text: "Describe these" },
   ] }] } });
   assert.equal(response.statusCode, 200);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
+  assert.equal(imageCalls[0].hostname, "203.0.113.10");
+  assert.equal(imageCalls[0].headers.Host, "images.example.test");
+  assert.equal(imageCalls[0].servername, "images.example.test");
 });
 
 test("blocked image destinations are not fetched and Ollama still explains the note", async () => {
   imageFetchDns.lookupAll = async () => [{ address: "127.0.0.1", family: 4 }];
+  const imageRequests = mock.method(https, "request", () => {
+    throw new Error("must not fetch a private image");
+  });
   const requests = [];
   globalThis.fetch = async (url, options) => {
     requests.push(String(url));
@@ -159,6 +186,7 @@ test("blocked image destinations are not fetched and Ollama still explains the n
     ] },
   ] } });
   assert.equal(response.statusCode, 200);
+  assert.equal(imageRequests.mock.callCount(), 0);
   assert.deepEqual(requests, ["https://ollama.com/api/chat"]);
 });
 
