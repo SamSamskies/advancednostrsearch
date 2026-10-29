@@ -265,6 +265,30 @@ for (const path of ["ipa", "hosted"]) {
   });
 }
 
+test("hosted web search follows the request tools snapshot, not a live toggle", async () => {
+  setup();
+  setHostedConsent(true);
+  setWebSearchEnabled(false);
+  let posted;
+  globalThis.fetch = async (_url, options = {}) => {
+    if (options.method === "GET") return Response.json({ ok: true });
+    posted = JSON.parse(options.body);
+    return Response.json({ content: "Hosted answer" });
+  };
+  const session = await createHostedBackend().create();
+  await drain(
+    session.request({
+      method: "chat",
+      messages,
+      tools: [{ type: "web_search" }],
+    }),
+  );
+  assert.equal(posted.webSearch, true);
+  setWebSearchEnabled(true);
+  await drain(session.request({ method: "chat", messages }));
+  assert.equal(posted.webSearch, false);
+});
+
 test("hosted probe requires consent before sending note content", async () => {
   setup();
   let posts = 0;
