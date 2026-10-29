@@ -521,13 +521,10 @@ export function AskAiPanel({
 
   useEffect(() => {
     const current = getThread(note.id);
-    const restartingIntro =
-      !current.visible.some((message) => message.role === "user") &&
-      current.visible.some(
-        (message) =>
-          message.role === "assistant" && message.pending && !message.content,
-      );
-    // Don't rewrite the in-flight transcript; the next runTurn applies this.
+    const restartingIntro = !current.visible.some(
+      (message) => message.role === "user",
+    );
+    // Don't rewrite a follow-up turn in flight; the next runTurn applies this.
     if (isTurnLive(note.id) && !restartingIntro) return;
 
     const nextContent = noteContextUserContent(note, authorName, includeImages);
@@ -543,19 +540,16 @@ export function AskAiPanel({
       return;
 
     if (restartingIntro) {
-      current.visible = current.visible.filter(
-        (message) =>
-          !(
-            message.role === "assistant" &&
-            message.pending &&
-            !message.content
-          ),
-      );
-    }
-    persist(note.id, current);
-    if (restartingIntro) {
+      abortTurn(note.id);
+      current.history = [];
+      current.visible = [];
+      current.introStarted = true;
+      persist(note.id, current);
       void runTurnRef.current(null);
+      return;
     }
+
+    persist(note.id, current);
   }, [note, authorName, webSearchEnabled, includeImages]);
 
   function handleSubmit(event: FormEvent) {
