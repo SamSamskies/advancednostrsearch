@@ -7,6 +7,7 @@ import {
   patchNoteContextHistory,
   preferredResponseLanguage,
   systemPrompt,
+  SYSTEM_PROMPT_IMAGES_LINE,
 } from "../src/ask-ai-context.ts";
 import { noteImageUrls } from "../src/media.ts";
 
@@ -144,4 +145,44 @@ test("updating author metadata or web search preserves language and follow-up hi
   assert.equal(patchNoteContextHistory(history, withImage, true, "es-ES"), true);
   assert.equal(history[0].content, systemPrompt(true, true, "es-ES"));
   assert.deepEqual(history.slice(2), followups);
+});
+
+test("images off keeps inline and imeta-only links once, including media-only notes", () => {
+  const inline = "https://example.com/photo.png";
+  const imeta = "https://example.com/imeta-only";
+  const withMedia = {
+    ...note,
+    content: `Look at this ${inline}`,
+    tags: [
+      ["imeta", `url ${inline}`, "m image/png"],
+      ["imeta", `url ${imeta}`, "m image/webp"],
+    ],
+  };
+  const content = noteContextUserContent(withMedia, "Alice", false);
+  assert.equal(typeof content, "string");
+  assert.equal(content, `${buildNoteContext(withMedia, "Alice")}\n\n${imeta}`);
+  assert.equal(content.split(inline).length, 2);
+  const mediaOnly = noteContextUserContent({ ...withMedia, content: "" }, "Alice", false);
+  assert.ok(mediaOnly.includes("(no text — media-only note)"));
+  assert.ok(mediaOnly.endsWith(`${inline}\n${imeta}`));
+  assert.equal(noteContextUserContent(note, "Alice", false), buildNoteContext(note, "Alice"));
+});
+
+test("toggling images updates the context and vision prompt while preserving follow-ups", () => {
+  const withImage = { ...note, tags: [["imeta", "url https://example.com/photo.png", "m image/png"]] };
+  const history = [
+    { role: "system", content: systemPrompt(true, true, "es-ES") },
+    { role: "user", content: noteContextUserContent(withImage, "Alice") },
+    { role: "assistant", content: "A photo." },
+    { role: "user", content: "Reply in French: who is this?" },
+  ];
+  const followups = history.slice(2);
+  for (const enabled of [false, true, false]) {
+    const content = noteContextUserContent(withImage, "Alice", enabled);
+    assert.equal(patchNoteContextHistory(history, content, true, "es-ES"), true);
+    assert.equal(history[0].content.includes(SYSTEM_PROMPT_IMAGES_LINE), enabled);
+    assert.equal(history[0].content, systemPrompt(true, enabled, "es-ES"));
+    assert.deepEqual(history[1].content, content);
+    assert.deepEqual(history.slice(2), followups);
+  }
 });

@@ -28,9 +28,10 @@ DNS addresses, and limits fetch time and response size.
 
 Each note has an **Ask AI** button. It opens an explanation of the note and lets
 readers ask follow-up questions, stop a response, or clear the conversation.
-Conversations stay in memory for the current page session. Images on the note
-are included when the inference provider supports them; Markdown links open in
-a new tab. The panel's web-search checkbox is saved in the browser.
+Conversations stay in memory for the current page session. **Include note images**
+is on by default; turn it off for text-only models. Image URLs stay in the note
+context when images are off. Both this checkbox and **Search the web when helpful**
+are saved in the browser. Markdown links open in a new tab.
 
 Generated answers default to the browser's preferred language (English when
 unavailable), regardless of the note's language. An explicit language request

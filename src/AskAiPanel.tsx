@@ -20,7 +20,12 @@ import {
   type InferenceGate,
   type InferenceMessage,
 } from "./inference";
-import { setWebSearchEnabled, useWebSearchEnabled } from "./settings";
+import {
+  setWebSearchEnabled,
+  useWebSearchEnabled,
+  setIncludeImagesEnabled,
+  useIncludeImagesEnabled,
+} from "./settings";
 import type { Kind0Profile } from "./identity";
 import { profileLabel } from "./mentions";
 import { AskAiMarkdown } from "./AskAiMarkdown";
@@ -227,6 +232,7 @@ export function AskAiPanel({
     (message) => message.role === "assistant" && message.pending,
   );
   const webSearchEnabled = useWebSearchEnabled();
+  const includeImages = useIncludeImagesEnabled();
   const maySearchWeb = canSearchWeb();
 
   function persist(noteId: string, next: Thread) {
@@ -330,7 +336,7 @@ export function AskAiPanel({
     inflight.set(note.id, controller);
     const noteId = note.id;
     const canSearch = canSearchWeb();
-    const contextContent = noteContextUserContent(note, authorName);
+    const contextContent = noteContextUserContent(note, authorName, includeImages);
     const hasImages = Array.isArray(contextContent);
 
     const current = getThread(noteId);
@@ -513,7 +519,7 @@ export function AskAiPanel({
   useEffect(() => {
     const current = getThread(note.id);
     const canSearch = canSearchWeb();
-    const nextContent = noteContextUserContent(note, authorName);
+    const nextContent = noteContextUserContent(note, authorName, includeImages);
     if (
       !patchNoteContextHistory(
         current.history,
@@ -544,7 +550,7 @@ export function AskAiPanel({
     if (restartingIntro) {
       void runTurnRef.current(null);
     }
-  }, [note, authorName, webSearchEnabled]);
+  }, [note, authorName, webSearchEnabled, includeImages]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -627,14 +633,24 @@ export function AskAiPanel({
           </button>
         </header>
 
-        <label className="ask-ai-web-search">
-          <input
-            type="checkbox"
-            checked={webSearchEnabled}
-            onChange={(event) => setWebSearchEnabled(event.target.checked)}
-          />
-          <span>Search the web when helpful</span>
-        </label>
+        <div className="ask-ai-options">
+          <label className="ask-ai-option">
+            <input
+              type="checkbox"
+              checked={webSearchEnabled}
+              onChange={(event) => setWebSearchEnabled(event.target.checked)}
+            />
+            <span>Search the web when helpful</span>
+          </label>
+          <label className="ask-ai-option">
+            <input
+              type="checkbox"
+              checked={includeImages}
+              onChange={(event) => setIncludeImagesEnabled(event.target.checked)}
+            />
+            <span>Include note images</span>
+          </label>
+        </div>
         <div ref={logRef} className="ask-ai-log" aria-live="polite">
           {gate === "checking" ? (
             <div className="ask-ai-msg assistant pending">
