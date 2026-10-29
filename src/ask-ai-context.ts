@@ -89,10 +89,15 @@ export function buildNoteContext(
 export function noteContextUserContent(
   note: LocatedEvent,
   authorName: string,
+  includeImages = true,
 ): string | ContentPart[] {
   const text = buildNoteContext(note, authorName);
   const images = noteImageUrls(note.content, note.tags);
   if (images.length === 0) return text;
+  if (!includeImages) {
+    const extraUrls = images.filter((url) => !text.includes(url));
+    return extraUrls.length ? `${text}\n\n${extraUrls.join("\n")}` : text;
+  }
   // Images first, then the existing note-context text for vision providers.
   return [
     ...images.map((url): ContentPart => ({ type: "image", url })),

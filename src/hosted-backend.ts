@@ -4,7 +4,6 @@ import {
   type InferenceFeatures,
   type InferenceRequest,
 } from "ipa-tools";
-import { isWebSearchEnabled } from "./settings.ts";
 
 export const HOSTED_BACKEND_ID = "hosted";
 export const INFERENCE_ENDPOINT = "/api/inference";
@@ -122,7 +121,9 @@ export function createHostedBackend(): InferenceBackend {
                 role: message.role,
                 content: "content" in message ? message.content : null,
               })),
-              webSearch: isWebSearchEnabled(),
+              webSearch: Boolean(
+                req.tools?.some((tool) => tool.type === "web_search"),
+              ),
               // Short note explanations should not wait for extended reasoning.
               options: { reasoningEffort: "none", ...req.options },
             }),

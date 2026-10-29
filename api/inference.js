@@ -20,6 +20,10 @@ import {
   INFERENCE_CLIENT_HEADER,
   originAllowed,
 } from "../lib/http.js";
+import {
+  isPrivateOrLocalHostname,
+  pinnedFetch,
+} from "../lib/safeUrl.js";
 
 const DEFAULT_MODELS = { ollama: "gemma4:cloud", gemini: "gemma-4-31b-it" };
 const MAX_BODY_BYTES = 100_000;
@@ -229,6 +233,59 @@ function contentsHaveFileData(contents) {
   );
 }
 
+function contentsHaveInlineData(contents) {
+  return contents.some((content) =>
+    content.parts.some((part) => part.inlineData)
+  );
+}
+
+// Keep in sync with SYSTEM_PROMPT_IMAGES_LINE in src/ask-ai-context.ts.
+const VISION_SYSTEM_LINE =
+  "The first user message includes the note's images before the text. Look at those images when they matter.";
+
+function stripVisionSystemLine(system) {
+  if (typeof system !== "string" || !system) return system;
+  return system
+    .split("\n")
+    .filter((line) => line !== VISION_SYSTEM_LINE)
+    .join("\n");
+}
+
+/** Turn unresolved fileData into text URLs so a failed fetch still explains the note. */
+function fallbackUnreadImages(contents) {
+  return contents.map((content) => {
+    const kept = [];
+    const unreadUrls = [];
+    for (const part of content.parts) {
+      if (part.fileData?.fileUri) unreadUrls.push(part.fileData.fileUri);
+      else kept.push(part);
+    }
+    if (unreadUrls.length === 0) return content;
+    const existingText = kept
+      .filter((part) => typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n\n");
+    const extraUrls = unreadUrls.filter((url) => url && !existingText.includes(url));
+    if (extraUrls.length === 0) return { ...content, parts: kept };
+    const extra = extraUrls.join("\n");
+    const parts = kept.slice();
+    let lastText = -1;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (typeof parts[i].text === "string") {
+        lastText = i;
+        break;
+      }
+    }
+    if (lastText >= 0) {
+      const text = parts[lastText].text;
+      parts[lastText] = { text: text ? `${text}\n\n${extra}` : extra };
+    } else {
+      parts.push({ text: extra });
+    }
+    return { ...content, parts };
+  });
+}
+
 /**
  * DNS lookup used before fetching note images. Tests replace `lookupAll` so
  * they can simulate public vs private answers without a network.
@@ -238,69 +295,6 @@ export const imageFetchDns = {
     return dns.lookup(hostname, { all: true });
   },
 };
-
-/** Block localhost, RFC1918, link-local, and cloud-metadata targets (SSRF). */
-function isPrivateOrLocalHostname(hostname) {
-  const host = String(hostname || "")
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "");
-  if (!host || host === "localhost" || host.endsWith(".localhost")) return true;
-  if (host === "local" || host.endsWith(".local")) return true;
-  if (host === "metadata.google.internal" || host.endsWith(".internal")) {
-    return true;
-  }
-  if (host === "::1" || host === "0.0.0.0" || host === "::") return true;
-
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (ipv4) {
-    const octets = ipv4.slice(1).map(Number);
-    if (octets.some((n) => n > 255)) return true;
-    const [a, b] = octets;
-    if (a === 0 || a === 10 || a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    return false;
-  }
-
-  if (host.includes(":")) {
-    if (
-      host.startsWith("fe80:") ||
-      host.startsWith("fc") ||
-      host.startsWith("fd")
-    ) {
-      return true;
-    }
-    const mapped = /:ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(host);
-    if (mapped) return isPrivateOrLocalHostname(mapped[1]);
-  }
-
-  return false;
-}
-
-async function assertPublicResolvedAddresses(hostname) {
-  const host = String(hostname || "")
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "");
-  if (isIP(host)) return;
-
-  let records;
-  try {
-    records = await imageFetchDns.lookupAll(host);
-  } catch {
-    throw new Error("image_fetch_url");
-  }
-  if (!Array.isArray(records) || records.length === 0) {
-    throw new Error("image_fetch_url");
-  }
-  for (const record of records) {
-    const address = record?.address;
-    if (!address || isPrivateOrLocalHostname(address)) {
-      throw new Error("image_fetch_url");
-    }
-  }
-}
 
 async function assertSafeImageFetchUrl(fileUri, base) {
   let parsed;
@@ -318,9 +312,31 @@ async function assertSafeImageFetchUrl(fileUri, base) {
   if (isPrivateOrLocalHostname(parsed.hostname)) {
     throw new Error("image_fetch_url");
   }
-  // Literal IPs are covered above; names like 127.0.0.1.nip.io need DNS.
-  await assertPublicResolvedAddresses(parsed.hostname);
-  return parsed;
+  const host = parsed.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(host)) {
+    return { url: parsed, address: host, family: host.includes(":") ? 6 : 4 };
+  }
+  let records;
+  try {
+    records = await imageFetchDns.lookupAll(host);
+  } catch {
+    throw new Error("image_fetch_url");
+  }
+  if (!Array.isArray(records) || records.length === 0) {
+    throw new Error("image_fetch_url");
+  }
+  for (const record of records) {
+    const address = record?.address;
+    if (!address || isPrivateOrLocalHostname(address)) {
+      throw new Error("image_fetch_url");
+    }
+  }
+  const first = records[0];
+  return {
+    url: parsed,
+    address: first.address,
+    family: first.family ?? (first.address.includes(":") ? 6 : 4),
+  };
 }
 
 async function fetchImageAsInlineData(fileUri, mimeType, signal) {
@@ -328,9 +344,7 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
   let res;
 
   for (let hop = 0; hop <= MAX_IMAGE_FETCH_REDIRECTS; hop++) {
-    res = await fetch(current.href, {
-      method: "GET",
-      redirect: "manual",
+    res = await pinnedFetch(current, {
       signal,
       headers: {
         // Some media CDNs reject bare bot fetches.
@@ -344,7 +358,7 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
     const location = res.headers.get("location");
     if (!location) throw new Error("image_fetch_url");
     // Re-validate every hop so redirects cannot pivot into private/metadata nets.
-    current = await assertSafeImageFetchUrl(location, current.href);
+    current = await assertSafeImageFetchUrl(location, current.url.href);
   }
 
   if (!res || (res.status >= 300 && res.status < 400)) {
@@ -363,7 +377,7 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
   const mime =
     headerMime ||
     normalizeImageMime(mimeType) ||
-    guessImageMime(current.href);
+    guessImageMime(current.url.href);
   return {
     inlineData: {
       mimeType: mime,
@@ -375,7 +389,8 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
 /**
  * Resolve `{ fileData }` to `{ inlineData }` in our process. Google's URL fetch
  * often fails or 503s on Nostr/Blossom CDNs; bytes we can reach work more often.
- * Leave fileData only when our fetch fails so Gemini can still try.
+ * Leave fileData only when our fetch fails; provider paths then fall back to
+ * a text URL (Gemini below, Ollama in toMessages).
  */
 async function resolveImagesToInline(contents, signal) {
   const next = [];
@@ -609,6 +624,20 @@ export default async function handler(req, res) {
   // fetch for Nostr CDNs often returns 503 / fetch failures.
   if (contentsHaveFileData(geminiBody.contents)) {
     geminiBody.contents = await resolveImagesToInline(geminiBody.contents, requestSignal);
+  }
+  geminiBody.contents = fallbackUnreadImages(geminiBody.contents);
+  if (
+    geminiBody.systemInstruction &&
+    !contentsHaveInlineData(geminiBody.contents)
+  ) {
+    const system = stripVisionSystemLine(
+      geminiBody.systemInstruction.parts?.[0]?.text
+    );
+    if (system) {
+      geminiBody.systemInstruction = { parts: [{ text: system }] };
+    } else {
+      delete geminiBody.systemInstruction;
+    }
   }
 
   async function postGemini(body) {
