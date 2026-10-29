@@ -119,6 +119,21 @@ test("image context includes inline and imeta images once, before the text", () 
     ).length,
     8,
   );
+  const hash = "ab".repeat(32);
+  const inlineBlossom = `https://cdn.example/${hash}.png`;
+  const imetaBlossom = `https://blossom.example/${hash}`;
+  const blossomNote = {
+    ...note,
+    content: inlineBlossom,
+    tags: [["imeta", `url ${imetaBlossom}`, "m image/png"]],
+  };
+  const blossomContent = noteContextUserContent(blossomNote, "Alice");
+  assert.deepEqual(blossomContent.slice(0, -1), [
+    { type: "image", url: inlineBlossom },
+  ]);
+  assert.deepEqual(noteImageUrls(blossomNote.content, blossomNote.tags), [
+    inlineBlossom,
+  ]);
 });
 
 test("updating author metadata or web search preserves language and follow-up history", () => {

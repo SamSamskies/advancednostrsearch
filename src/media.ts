@@ -190,14 +190,13 @@ export function noteImageUrls(
   tags: string[][] = []
 ): string[] {
   const urls: string[] = [];
-  const seen = new Set<string>();
 
   const add = (raw: string | undefined) => {
     if (!raw || urls.length >= MAX_NOTE_IMAGES) return;
     const url = normalizeHttpUrl(raw);
-    if (!url || seen.has(url)) return;
+    if (!url) return;
+    if (urls.some((existing) => urlsMatch(existing, url))) return;
     if (classifyUrl(url, tags) !== "image") return;
-    seen.add(url);
     urls.push(url);
   };
 
