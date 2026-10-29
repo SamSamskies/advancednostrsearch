@@ -4,7 +4,11 @@
  */
 
 import { applyCors, originAllowed } from "../lib/http.js";
-import { assertSafeFetchUrl, pinnedFetch } from "../lib/safeUrl.js";
+import {
+  assertSafeFetchUrl,
+  discardBody,
+  pinnedFetch,
+} from "../lib/safeUrl.js";
 
 const MAX_REDIRECTS = 5;
 const MAX_HTML_BYTES = 1_000_000;
@@ -111,14 +115,6 @@ async function readBodyLimited(res, maxBytes) {
     offset += chunk.byteLength;
   }
   return new TextDecoder("utf-8").decode(merged);
-}
-
-async function discardBody(res) {
-  try {
-    await res.body?.cancel?.();
-  } catch {
-    // ignore — best-effort teardown
-  }
 }
 
 async function fetchHtml(targetUrl) {

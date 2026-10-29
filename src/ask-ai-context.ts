@@ -22,6 +22,15 @@ export function preferredResponseLanguage(
   return "en";
 }
 
+/** True when search/image instructions differ. */
+export function systemPromptChanged(
+  previous: string | undefined,
+  next: string | undefined,
+): boolean {
+  if (!previous || !next) return false;
+  return previous !== next;
+}
+
 function encodeNpub(pubkey: string): string {
   try {
     return nip19.npubEncode(pubkey);

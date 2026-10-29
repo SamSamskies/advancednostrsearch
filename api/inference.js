@@ -21,6 +21,7 @@ import {
   originAllowed,
 } from "../lib/http.js";
 import {
+  discardBody,
   isPrivateOrLocalHostname,
   pinnedFetch,
 } from "../lib/safeUrl.js";
@@ -356,15 +357,18 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
     if (res.status < 300 || res.status >= 400) break;
 
     const location = res.headers.get("location");
+    await discardBody(res);
     if (!location) throw new Error("image_fetch_url");
     // Re-validate every hop so redirects cannot pivot into private/metadata nets.
     current = await assertSafeImageFetchUrl(location, current.url.href);
   }
 
   if (!res || (res.status >= 300 && res.status < 400)) {
+    await discardBody(res);
     throw new Error("image_fetch_url");
   }
   if (!res.ok) {
+    await discardBody(res);
     throw new Error(`image_fetch_http_${res.status}`);
   }
   const buffer = Buffer.from(await res.arrayBuffer());
