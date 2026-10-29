@@ -4,7 +4,10 @@ import {
   createHostedBackend,
   setHostedConsent,
 } from "../src/hosted-backend.ts";
-import { systemPrompt } from "../src/ask-ai-context.ts";
+import {
+  patchNoteContextHistory,
+  systemPrompt,
+} from "../src/ask-ai-context.ts";
 import {
   canSearchWeb,
   completeChat,
@@ -183,6 +186,7 @@ test("text-only IPA with hosted consent can search on the image fallback path", 
 
 test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", async () => {
   setup();
+  const now = new Date("2026-10-29T13:02:00Z");
   const imageUrl = "https://example.com/imeta-only.webp";
   const noteText =
     "A public Nostr note:\nAuthor: Alice\n\nNote:\n(no text — media-only note)";
@@ -191,7 +195,7 @@ test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", as
     async *request(payload) {
       assert.equal(
         payload.messages[0].content,
-        systemPrompt(true, false, "es-ES"),
+        systemPrompt(true, false, "es-ES", now),
       );
       assert.equal(payload.messages[1].content, `${noteText}\n\n${imageUrl}`);
       yield {
@@ -205,7 +209,7 @@ test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", as
   };
   await completeChat({
     messages: [
-      { role: "system", content: systemPrompt(true, true, "es-ES") },
+      { role: "system", content: systemPrompt(true, true, "es-ES", now) },
       {
         role: "user",
         content: [
@@ -218,10 +222,11 @@ test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", as
 });
 
 for (const path of ["ipa", "hosted"]) {
-  test(`${path} receives the shared language prompt for initial explanations and follow-ups`, async () => {
+  test(`${path} receives the language prompt and a fresh clock on every turn`, async () => {
     setup();
     setWebSearchEnabled(false);
-    const prompt = systemPrompt(false, false, "es-ES");
+    const earlier = new Date("2026-10-29T13:02:00Z");
+    const prompt = systemPrompt(false, false, "es-ES", earlier);
     const history = [
       { role: "system", content: prompt },
       {
@@ -254,10 +259,15 @@ for (const path of ["ipa", "hosted"]) {
       "Was ist ein Relay?",
       "Reply in French: what is a relay?",
     ]) {
+      const now = new Date(earlier.getTime() + received.length * 60_000);
+      assert.equal(
+        patchNoteContextHistory(history, history[1].content, false, "es-ES", now),
+        false,
+      );
       if (question) history.push({ role: "user", content: question });
       const result = await completeChat({ messages: [...history] });
       const request = received.at(-1);
-      assert.equal(request[0].content, prompt);
+      assert.equal(request[0].content, systemPrompt(false, false, "es-ES", now));
       assert.deepEqual(request, history);
       history.push({ role: "assistant", content: result.content });
     }
