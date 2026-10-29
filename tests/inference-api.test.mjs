@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
 import handler, { imageFetchDns } from "../api/inference.js";
+import { SYSTEM_PROMPT_IMAGES_LINE } from "../src/ask-ai-context.ts";
 
 const originalFetch = globalThis.fetch;
 const originalLookupAll = imageFetchDns.lookupAll;
@@ -185,17 +186,22 @@ test("hosted image fetch does not request hostnames that resolve to private addr
   globalThis.fetch = async (url, options) => {
     calls.push(String(url));
     const body = JSON.parse(options.body);
-    assert.deepEqual(body.contents[0].parts[0], {
-      fileData: {
-        fileUri: "https://127.0.0.1.nip.io/photo.png",
-        mimeType: "image/png",
-      },
-    });
+    assert.equal(
+      body.systemInstruction.parts[0].text,
+      "Explain a public Nostr note.",
+    );
+    assert.deepEqual(body.contents[0].parts, [
+      { text: "Describe this\n\nhttps://127.0.0.1.nip.io/photo.png" },
+    ]);
     return success("An image.");
   };
   const response = await call({
     body: {
       messages: [
+        {
+          role: "system",
+          content: `Explain a public Nostr note.\n${SYSTEM_PROMPT_IMAGES_LINE}`,
+        },
         {
           role: "user",
           content: [

@@ -229,6 +229,59 @@ function contentsHaveFileData(contents) {
   );
 }
 
+function contentsHaveInlineData(contents) {
+  return contents.some((content) =>
+    content.parts.some((part) => part.inlineData)
+  );
+}
+
+// Keep in sync with SYSTEM_PROMPT_IMAGES_LINE in src/ask-ai-context.ts.
+const VISION_SYSTEM_LINE =
+  "The first user message includes the note's images before the text. Look at those images when they matter.";
+
+function stripVisionSystemLine(system) {
+  if (typeof system !== "string" || !system) return system;
+  return system
+    .split("\n")
+    .filter((line) => line !== VISION_SYSTEM_LINE)
+    .join("\n");
+}
+
+/** Turn unresolved fileData into text URLs so a failed fetch still explains the note. */
+function fallbackUnreadImages(contents) {
+  return contents.map((content) => {
+    const kept = [];
+    const unreadUrls = [];
+    for (const part of content.parts) {
+      if (part.fileData?.fileUri) unreadUrls.push(part.fileData.fileUri);
+      else kept.push(part);
+    }
+    if (unreadUrls.length === 0) return content;
+    const existingText = kept
+      .filter((part) => typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n\n");
+    const extraUrls = unreadUrls.filter((url) => url && !existingText.includes(url));
+    if (extraUrls.length === 0) return { ...content, parts: kept };
+    const extra = extraUrls.join("\n");
+    const parts = kept.slice();
+    let lastText = -1;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (typeof parts[i].text === "string") {
+        lastText = i;
+        break;
+      }
+    }
+    if (lastText >= 0) {
+      const text = parts[lastText].text;
+      parts[lastText] = { text: text ? `${text}\n\n${extra}` : extra };
+    } else {
+      parts.push({ text: extra });
+    }
+    return { ...content, parts };
+  });
+}
+
 /**
  * DNS lookup used before fetching note images. Tests replace `lookupAll` so
  * they can simulate public vs private answers without a network.
@@ -375,7 +428,8 @@ async function fetchImageAsInlineData(fileUri, mimeType, signal) {
 /**
  * Resolve `{ fileData }` to `{ inlineData }` in our process. Google's URL fetch
  * often fails or 503s on Nostr/Blossom CDNs; bytes we can reach work more often.
- * Leave fileData only when our fetch fails so Gemini can still try.
+ * Leave fileData only when our fetch fails; provider paths then fall back to
+ * a text URL (Gemini below, Ollama in toMessages).
  */
 async function resolveImagesToInline(contents, signal) {
   const next = [];
@@ -609,6 +663,20 @@ export default async function handler(req, res) {
   // fetch for Nostr CDNs often returns 503 / fetch failures.
   if (contentsHaveFileData(geminiBody.contents)) {
     geminiBody.contents = await resolveImagesToInline(geminiBody.contents, requestSignal);
+  }
+  geminiBody.contents = fallbackUnreadImages(geminiBody.contents);
+  if (
+    geminiBody.systemInstruction &&
+    !contentsHaveInlineData(geminiBody.contents)
+  ) {
+    const system = stripVisionSystemLine(
+      geminiBody.systemInstruction.parts?.[0]?.text
+    );
+    if (system) {
+      geminiBody.systemInstruction = { parts: [{ text: system }] };
+    } else {
+      delete geminiBody.systemInstruction;
+    }
   }
 
   async function postGemini(body) {
