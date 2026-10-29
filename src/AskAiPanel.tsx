@@ -530,8 +530,9 @@ export function AskAiPanel({
     const restartingIntro = !current.visible.some(
       (message) => message.role === "user",
     );
-    // Don't rewrite a follow-up turn in flight; the next runTurn applies this.
-    if (isTurnLive(note.id) && !restartingIntro) return;
+    // Follow-ups already have replies from the previous mode. Leave that
+    // transcript alone; the next runTurn applies the new image/search context.
+    if (!restartingIntro) return;
 
     const nextContent = noteContextUserContent(note, authorName, includeImages);
     const canSearch = canSearchWeb(Array.isArray(nextContent));
@@ -545,17 +546,12 @@ export function AskAiPanel({
     )
       return;
 
-    if (restartingIntro) {
-      abortTurn(note.id);
-      current.history = [];
-      current.visible = [];
-      current.introStarted = true;
-      persist(note.id, current);
-      void runTurnRef.current(null);
-      return;
-    }
-
+    abortTurn(note.id);
+    current.history = [];
+    current.visible = [];
+    current.introStarted = true;
     persist(note.id, current);
+    void runTurnRef.current(null);
   }, [note, authorName, webSearchEnabled, includeImages]);
 
   function handleSubmit(event: FormEvent) {
