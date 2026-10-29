@@ -61,8 +61,20 @@ function inferenceFeatures() {
   }
 }
 
-export function canSearchWeb(): boolean {
+function usesHostedImageFallback(hasImages: boolean): boolean {
+  return (
+    hasImages &&
+    isInferenceAvailable() &&
+    !Boolean(inferenceFeatures().imageInput) &&
+    hasHostedConsent()
+  );
+}
+
+export function canSearchWeb(hasImages = false): boolean {
   if (!isWebSearchEnabled()) return false;
+  // Text-only IPA still uses hosted for vision when consented, and that
+  // path can search even if the extension itself cannot.
+  if (usesHostedImageFallback(hasImages)) return true;
   if (isInferenceAvailable()) {
     // Stable IPA advertises and runs web_search; experimental.request is not required.
     return Boolean(inferenceFeatures().webSearch);
@@ -272,7 +284,7 @@ export async function completeChat(options: {
 }): Promise<ChatResult> {
   const messages = options.messages as Message[];
   const hasImages = messagesHaveImageParts(options.messages);
-  const wantSearch = canSearchWeb();
+  const wantSearch = canSearchWeb(hasImages);
   const tools = wantSearch ? [WEB_SEARCH_TOOL] : undefined;
   const features = inferenceFeatures();
   const ipaSupportsImages =
@@ -290,10 +302,10 @@ export async function completeChat(options: {
   // imeta-only URLs) and drop the vision system-prompt line so instructions
   // match the payload.
   let requestMessages = messages;
+  if (usesHostedImageFallback(hasImages)) {
+    return hostedOnlyRequest(payload, options.onStatus, options.onDelta);
+  }
   if (hasImages && isInferenceAvailable() && !ipaSupportsImages) {
-    if (hasHostedConsent()) {
-      return hostedOnlyRequest(payload, options.onStatus, options.onDelta);
-    }
     requestMessages = stripImageParts(messages);
   } else if (hasImages && ipaSupportsImages) {
     requestMessages = withIpaProxiedImageUrls(messages);

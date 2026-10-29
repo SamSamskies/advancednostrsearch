@@ -233,7 +233,10 @@ export function AskAiPanel({
   );
   const webSearchEnabled = useWebSearchEnabled();
   const includeImages = useIncludeImagesEnabled();
-  const maySearchWeb = canSearchWeb();
+  const contextHasImages = Array.isArray(
+    noteContextUserContent(note, authorName, includeImages),
+  );
+  const maySearchWeb = canSearchWeb(contextHasImages);
 
   function persist(noteId: string, next: Thread) {
     threads.set(noteId, next);
@@ -335,9 +338,9 @@ export function AskAiPanel({
     const controller = new AbortController();
     inflight.set(note.id, controller);
     const noteId = note.id;
-    const canSearch = canSearchWeb();
     const contextContent = noteContextUserContent(note, authorName, includeImages);
     const hasImages = Array.isArray(contextContent);
+    const canSearch = canSearchWeb(hasImages);
 
     const current = getThread(noteId);
     if (current.history.length === 0) {
@@ -527,8 +530,8 @@ export function AskAiPanel({
     // Don't rewrite the in-flight transcript; the next runTurn applies this.
     if (isTurnLive(note.id) && !restartingIntro) return;
 
-    const canSearch = canSearchWeb();
     const nextContent = noteContextUserContent(note, authorName, includeImages);
+    const canSearch = canSearchWeb(Array.isArray(nextContent));
     if (
       !patchNoteContextHistory(
         current.history,

@@ -6,6 +6,7 @@ import {
 } from "../src/hosted-backend.ts";
 import { systemPrompt } from "../src/ask-ai-context.ts";
 import {
+  canSearchWeb,
   completeChat,
   prepareInference,
   describeInferenceError,
@@ -146,6 +147,38 @@ test("text-only IPA still answers notes containing images without hosted consent
       },
     ],
   });
+});
+
+test("text-only IPA with hosted consent can search on the image fallback path", async () => {
+  setup();
+  setHostedConsent(true);
+  window.inference = {
+    getFeatures: () => ({}),
+    async *request() {
+      throw new Error("IPA must not handle consented image fallback");
+    },
+  };
+  let posted;
+  globalThis.fetch = async (_url, options = {}) => {
+    if (options.method === "GET") return Response.json({ ok: true });
+    posted = JSON.parse(options.body);
+    return Response.json({ content: "Hosted vision answer" });
+  };
+  assert.equal(canSearchWeb(false), false);
+  assert.equal(canSearchWeb(true), true);
+  const result = await completeChat({
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "image", url: "https://example.com/a.png" },
+          { type: "text", text: "Describe this" },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.content, "Hosted vision answer");
+  assert.equal(posted.webSearch, true);
 });
 
 test("text-only IPA drops the vision prompt and keeps imeta-only image URLs", async () => {
