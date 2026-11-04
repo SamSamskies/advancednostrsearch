@@ -66,11 +66,44 @@ can override the selected provider's default when `INFERENCE_PROVIDER` is set;
 provider-specific model variables take precedence. An old generic Gemini key
 is never sent to Ollama.
 
+The shared route uses the same browser endpoint, `/api/inference`. Set these
+**server-only** variables to enable shared Replit inference:
+
+```dotenv
+SHARED_INFERENCE_ENABLED=true
+SHARED_INFERENCE_PROVIDER=replit
+REPLIT_INFERENCE_MODEL=google/gemma-4-26b-a4b-it
+SHARED_INFERENCE_URL=https://ipa-inference-fallback-api.vercel.app/api/inference
+SHARED_INFERENCE_APP_SECRET=<this app's staged secret>
+SHARED_INFERENCE_REPLIT_API_KEY=<staged gateway key>
+INFERENCE_FALLBACK_ENABLED=true
+```
+
+Use existing secrets; never commit these values or prefix them with `VITE_`.
+The backend fixes the `advancednostrsearch` app identity, injects the selected
+provider's key and model, validates browser input, and returns non-streaming JSON.
+Shared requests have a 180-second timeout within a 200-second Vercel function.
+There is no automatic retry or direct fallback on shared errors.
+
+Keep direct Ollama/Gemini settings for independent rollback: set only
+`SHARED_INFERENCE_ENABLED=false` and redeploy to restore them. Shared Replit's
+model/key never affect the direct route. For local development, `npm run dev`
+continues to serve both API endpoints; the shared service may run separately on
+port 3001 with `SHARED_INFERENCE_URL=http://127.0.0.1:3001/api/inference` in
+`.env.local`. Local HTTP is rejected in Preview/Production. Gemini search on the
+shared path requires separate validation and an explicit backend opt-in.
+See [rollout and validation](docs/shared-inference-rollout.md) for smoke commands,
+preview evidence, and rollback targets.
+
 Without an inference extension, the panel asks for consent before sending the
 note and questions to the hosted provider. Hosted requests have a per-browser
-daily allowance; `INFERENCE_CLIENT_DAILY_LIMIT` changes the default of 50.
-Hosted explanations use lightweight reasoning, and server requests time out after
-50 seconds so slow provider calls can be retried.
+soft daily allowance of 50 successful explanations. The direct route also enforces
+a per-process daily allowance, configured by `INFERENCE_CLIENT_DAILY_LIMIT`.
+The shared service separately admits 10 POSTs per app per 60 seconds within a
+region, across provider selections and client IDs; this is not a global daily
+quota or spending cap.
+Reasoning uses the provider default unless a caller supplies an explicit option.
+Direct server requests time out after 50 seconds.
 Ollama requests also have configurable limits: 5 explanations per browser per
 rolling minute (`OLLAMA_CLIENT_REQUESTS_PER_MINUTE`), 20 upstream API attempts
 per rolling minute (`OLLAMA_REQUESTS_PER_MINUTE`, including search and follow-up

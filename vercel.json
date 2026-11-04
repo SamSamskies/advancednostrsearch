@@ -1,5 +1,8 @@
 {
+  "fluid": true,
   "functions": {
-    "api/inference.js": { "maxDuration": 60 }
+    "api/inference.js": {
+      "maxDuration": 200
+    }
   }
 }
