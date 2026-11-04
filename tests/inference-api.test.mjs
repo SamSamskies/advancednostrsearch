@@ -8,6 +8,7 @@ import { SYSTEM_PROMPT_IMAGES_LINE } from "../src/ask-ai-context.ts";
 const originalFetch = globalThis.fetch;
 const originalLookupAll = imageFetchDns.lookupAll;
 const envNames = [
+  "SHARED_INFERENCE_ENABLED",
   "INFERENCE_PROVIDER",
   "INFERENCE_API_KEY",
   "GEMINI_API_KEY",
@@ -27,6 +28,7 @@ beforeEach(() => {
   process.env.INFERENCE_MODEL = "test-model";
   process.env.INFERENCE_FALLBACK_ENABLED = "true";
   process.env.INFERENCE_CLIENT_DAILY_LIMIT = "50";
+  process.env.SHARED_INFERENCE_ENABLED = "false";
   globalThis.fetch = () => {
     throw new Error("Unexpected network call in test");
   };
@@ -325,7 +327,7 @@ test("provider errors release the allowance so the user can retry", async () => 
   assert.equal((await call({ token })).statusCode, 200);
 });
 
-test("hosted lightweight reasoning maps to Gemma's minimal setting", async () => {
+test("explicit caller reasoning none maps to Gemma's minimal setting", async () => {
   process.env.INFERENCE_MODEL = "gemma-4-31b-it";
   globalThis.fetch = async (_url, options) => {
     const body = JSON.parse(options.body);

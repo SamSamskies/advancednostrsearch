@@ -16,7 +16,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "node --test tests/*.test.mjs",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "smoke:inference": "node scripts/smoke-inference.mjs"
   },
   "devDependencies": {
     "@types/react": "19.2.18",

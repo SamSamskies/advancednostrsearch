@@ -124,8 +124,7 @@ export function createHostedBackend(): InferenceBackend {
               webSearch: Boolean(
                 req.tools?.some((tool) => tool.type === "web_search"),
               ),
-              // Short note explanations should not wait for extended reasoning.
-              options: { reasoningEffort: "none", ...req.options },
+              options: req.options,
             }),
             signal: req.signal,
           });
@@ -136,6 +135,8 @@ export function createHostedBackend(): InferenceBackend {
           } catch {
             data = null;
           }
+
+          req.signal?.throwIfAborted();
 
           const errorCode =
             data &&
@@ -156,8 +157,11 @@ export function createHostedBackend(): InferenceBackend {
           if (errorCode === "provider_busy") {
             throw makeInferenceError("unavailable", "provider_busy");
           }
-          if (res.status === 429 || errorCode === "quota_exhausted") {
+          if (errorCode === "quota_exhausted") {
             throw makeInferenceError("unavailable", "quota_exhausted");
+          }
+          if (res.status === 429) {
+            throw makeInferenceError("unavailable", "rate_limited");
           }
           if (errorCode === "disabled" || errorCode === "missing_api_key") {
             throw makeInferenceError(
