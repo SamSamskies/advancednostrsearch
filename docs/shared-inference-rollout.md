@@ -22,8 +22,11 @@ Recorded November 4, 2026:
 - Preview-only Vercel authentication was enabled for this project, which
   previously had no preview protection. Production remains public.
 - `vercel.json` explicitly enables Fluid compute: this older project's legacy
-  runtime rejected the required 200-second duration. The per-deployment setting
-  supports the 180-second proxy timeout without changing the account plan.
+  runtime rejected the required 200-second duration. Project-level Fluid compute
+  was also enabled because automatic GitHub builds applied the legacy limit
+  before the per-deployment setting. Future builds now support the 180-second
+  proxy timeout without changing the account plan; the running production
+  deployment was not replaced.
   See [Vercel Fluid compute](https://vercel.com/docs/fluid-compute).
 
 The switch defaults off. Merging source alone does not select shared inference.
@@ -70,6 +73,7 @@ Live functional validation used this app's own identity and staged credentials:
 | Route | Deployment | Results |
 | --- | --- | --- |
 | Shared Replit | `dpl_4vYwjjb3VxQzUSNEJuXdimqa2dRu` — [Preview](https://advancednostrsearch-odvpyyrdi-samsamskies-projects.vercel.app) | GET availability; text; follow-up; provider-default reasoning; forged headers/body/query selectors; methods/origin/options/client/UTF-8 rejection; red image correctly identified; search-enabled response with HTTPS citations; full-size photo |
+| PR code commit `94678d9f81fadc52944ce52487fdcc4fb7a2cc32` | `dpl_baDmSpff7LLF1Vp86FKzBHgc9xJ8` — [Preview](https://advancednostrsearch-hed69bbzq-samsamskies-projects.vercel.app) | Ready GitHub-source build after enabling project-level Fluid compute; authenticated shared Replit availability/generation recheck |
 | Direct rollback | `dpl_ELUxP19n1v3qe36PviuEcPw9XV8M` — [Preview](https://advancednostrsearch-1m3nprmw1-samsamskies-projects.vercel.app) | GET availability and successful direct Ollama generation with `SHARED_INFERENCE_ENABLED=false`, while shared Replit provider/model settings remain present |
 
 The full-size test used this [public JPEG](https://images.unsplash.com/photo-1500534623283-312aade485b7?w=4000&q=100):
