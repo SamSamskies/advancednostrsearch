@@ -23,7 +23,7 @@ const headers = {
   "Content-Type": "application/json",
   Origin: endpoint.origin,
   "X-Inference-Client": crypto.randomUUID(),
-  ...(bypass ? { "x-vercel-protection-bypass": bypass } : {}),
+  ...(bypass && !values.vercel ? { "x-vercel-protection-bypass": bypass } : {}),
 };
 async function request(method, body, extra = {}, query = "") {
   if (values.vercel) {
