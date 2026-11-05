@@ -42,81 +42,51 @@ Ask AI uses an installed [Inference Bridge](https://github.com/SamSamskies/infer
 or another Inference Provider API extension first. No server credentials are
 needed for that path.
 
-The optional hosted fallback defaults to Ollama Cloud. To enable it locally,
-copy `.env.example` to `.env.local` and set `OLLAMA_API_KEY` to your
-[Ollama API key](https://ollama.com/settings/keys). All model and search requests
-go directly to `https://ollama.com/api`; no local Ollama installation is needed.
-The default `OLLAMA_MODEL=gemma4:cloud` is translated to `gemma4:31b`, the
-[direct API model name](https://docs.ollama.com/cloud). Images are sent as base64
-after the server fetches them. With web search enabled, the model can use Ollama's
-[web search API](https://docs.ollama.com/capabilities/web-search), with at most
-two searches and three chat calls per explanation, and source links in the answer.
-
-`npm run dev` serves both the app and the inference endpoint. On Vercel,
-configure the same server-only environment variables in the project;
-`api/inference.js` is deployed as a function. Never prefix keys with `VITE_`
-or add them to frontend code.
-
-Gemini remains available: set `INFERENCE_PROVIDER=gemini` and `GEMINI_API_KEY`,
-optionally overriding `GEMINI_MODEL` (default `gemma-4-31b-it`). Switching back
-to `INFERENCE_PROVIDER=ollama` uses the independent Ollama key and model.
-Legacy `INFERENCE_API_KEY`, `GEMINI_FALLBACK_ENABLED`, and
-`GEMINI_CLIENT_DAILY_LIMIT` are accepted only for Gemini. `INFERENCE_MODEL`
-can override the selected provider's default when `INFERENCE_PROVIDER` is set;
-provider-specific model variables take precedence. An old generic Gemini key
-is never sent to Ollama.
-
-The shared route uses the same browser endpoint, `/api/inference`. Set these
-**server-only** variables to enable shared Replit inference:
+The optional hosted fallback uses the authenticated shared inference service
+through `/api/inference`, with Replit selected by default. Copy `.env.example`
+to `.env.local` for local use. Set these **server-only** values in Vercel
+Preview and Production:
 
 ```dotenv
-SHARED_INFERENCE_ENABLED=true
+INFERENCE_FALLBACK_ENABLED=true
 SHARED_INFERENCE_PROVIDER=replit
 REPLIT_INFERENCE_MODEL=google/gemma-4-26b-a4b-it
 SHARED_INFERENCE_URL=https://ipa-inference-fallback-api.vercel.app/api/inference
-SHARED_INFERENCE_APP_SECRET=<this app's staged secret>
-SHARED_INFERENCE_REPLIT_API_KEY=<staged gateway key>
-INFERENCE_FALLBACK_ENABLED=true
+SHARED_INFERENCE_APP_SECRET=<this app's existing secret>
+SHARED_INFERENCE_REPLIT_API_KEY=<existing gateway key>
 ```
 
-Use existing secrets; never commit these values or prefix them with `VITE_`.
-The backend fixes the `advancednostrsearch` app identity, injects the selected
-provider's key and model, validates browser input, and returns non-streaming JSON.
-Shared requests have a 180-second timeout within a 200-second Vercel function.
-There is no automatic retry or direct fallback on shared errors.
+Keep selection/model/URL/enablement settings as **Config** and app/provider
+credentials as **Secret**. Never prefix them with `VITE_` or commit secret
+values. The backend fixes the `advancednostrsearch` app identity and injects
+its selected provider key and model. Browser-selected providers, models, and
+credentials cannot override them. The proxy bounds requests and selects public
+fields; the shared service validates messages, images, search values, and
+options. Responses are non-streaming JSON; the proxy times out after 180 seconds
+within a 200-second Fluid compute function.
 
-Keep direct Ollama/Gemini settings for independent rollback: set only
-`SHARED_INFERENCE_ENABLED=false` and redeploy to restore them. Shared Replit's
-model/key never affect the direct route. For local development, `npm run dev`
-continues to serve both API endpoints; the shared service may run separately on
-port 3001 with `SHARED_INFERENCE_URL=http://127.0.0.1:3001/api/inference` in
-`.env.local`. Local HTTP is rejected in Preview/Production. Gemini search on the
-shared path requires separate validation and an explicit backend opt-in.
-See [rollout and validation](docs/shared-inference-rollout.md) for smoke commands,
-preview evidence, and rollback targets.
+`INFERENCE_FALLBACK_ENABLED=false` disables hosted inference. Missing shared
+configuration fails closed. All hosted requests use the shared service;
+shared errors never trigger an automatic retry or a direct provider request.
+Shared Ollama and Gemini remain supported with their matching
+`SHARED_INFERENCE_OLLAMA_API_KEY` or `SHARED_INFERENCE_GEMINI_API_KEY` and
+backend-owned models (`OLLAMA_MODEL` and `GEMINI_MODEL` optionally override
+their defaults). Gemini search requires separate model validation
+and `SHARED_INFERENCE_GEMINI_SEARCH_ENABLED=true`. Legacy direct-provider
+keys, generic selection/model aliases, and quota settings are no longer read.
+
+`npm run dev` serves both `/api/inference` and `/api/preview`. The shared
+service can run independently on port 3001: use
+`SHARED_INFERENCE_URL=http://127.0.0.1:3001/api/inference` in `.env.local`.
+Local HTTP is rejected in deployed Preview/Production.
 
 Without an inference extension, the panel asks for consent before sending the
-note and questions to the hosted provider. Hosted requests have a per-browser
-soft daily allowance of 50 successful explanations. The direct route also enforces
-a per-process daily allowance, configured by `INFERENCE_CLIENT_DAILY_LIMIT`.
-The shared service separately admits 10 POSTs per app per 60 seconds within a
-region, across provider selections and client IDs; this is not a global daily
-quota or spending cap.
-Reasoning uses the provider default unless a caller supplies an explicit option.
-Direct server requests time out after 50 seconds.
-Ollama requests also have configurable limits: 5 explanations per browser per
-rolling minute (`OLLAMA_CLIENT_REQUESTS_PER_MINUTE`), 20 upstream API attempts
-per rolling minute (`OLLAMA_REQUESTS_PER_MINUTE`, including search and follow-up
-chat calls), and 2 concurrent explanations (`OLLAMA_MAX_CONCURRENT`).
-Failed attempts count toward minute limits; failed explanations release the
-daily allowance. HTTP 429 responses include `Retry-After`; an upstream 429
-starts a shared cooldown using Ollama's retry header, or 60 seconds when absent.
-These defaults are application policy, not Ollama's published plan limits.
-Limits and cooldowns live in memory per server process and reset on restart;
-Vercel instances do not share counters. They reduce bursts but do not enforce
-an account-wide budget across instances. Browser tokens can also be reset by
-the reader. A shared datastore is needed for strict deployment-wide quotas.
-If neither inference path is available, the panel links to Inference Bridge.
+note and questions to the hosted provider. Hosted requests retain a per-browser
+soft daily allowance of 50 successful explanations. Reasoning uses the provider
+default unless a caller supplies an explicit option. The shared service applies
+its own admission limits; browser counts can be reset and do not enforce an
+account-wide budget. If neither inference path is available, the panel links
+to Inference Bridge.
 
 ## Checks
 
@@ -124,3 +94,23 @@ If neither inference path is available, the panel links to Inference Bridge.
 npm test
 npm run build
 ```
+
+For functional checks against a protected Preview deployment:
+
+```bash
+npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --checks --followup --vercel
+npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --image-url 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=4000&q=100' --search --vercel
+```
+
+Each command makes a real generation; `--followup` adds another. `--vercel`
+uses the authenticated Vercel CLI for protected Preview access; omit it for
+public endpoints. `VERCEL_CLI_PATH` can point to the CLI's `dist/vc.js`.
+The image command exercises a full-size photo downloaded by the shared service,
+including its base64 upstream payload. Check the returned scene description;
+citations alone do not independently verify search execution.
+
+The shared-Replit deployment verified on November 4, 2026 is
+`dpl_2449EgdKfVVAu3Ayif2DsHKtcfZr`
+([deployment URL](https://advancednostrsearch-i5lpdrnxr-samsamskies-projects.vercel.app)).
+Restore that existing deployment through Vercel deployment history when rollback
+is needed, preserving its captured shared configuration and credentials.

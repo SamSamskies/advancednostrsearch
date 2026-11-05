@@ -21,7 +21,6 @@ test("Vite serves the server-only shared proxy alongside note previews", async (
     await once(upstream, "listening");
     delete process.env.VERCEL_ENV;
     Object.assign(process.env, {
-      SHARED_INFERENCE_ENABLED: "true",
       SHARED_INFERENCE_PROVIDER: "replit",
       SHARED_INFERENCE_URL: `http://127.0.0.1:${upstream.address().port}/api/inference`,
       SHARED_INFERENCE_APP_SECRET: "local-app-secret",
@@ -47,7 +46,7 @@ test("Vite serves the server-only shared proxy alongside note previews", async (
     assert.equal(upstreamRequests[1].headers.authorization, "Bearer local-app-secret");
     const posted = JSON.parse(upstreamRequests[1].body);
     assert.equal(posted.model, "local/model");
-    assert.deepEqual(posted.options, {});
+    assert.equal(posted.options, undefined);
     const oversized = await fetch(`${origin}/api/inference`, {
       method: "POST", headers: { Origin: origin }, body: "😀".repeat(26_000),
     });
