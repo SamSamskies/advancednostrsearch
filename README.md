@@ -62,8 +62,8 @@ values. The backend fixes the `advancednostrsearch` app identity and injects
 its selected provider key and model. Browser-selected providers, models, and
 credentials cannot override them. The proxy bounds requests and selects public
 fields; the shared service validates messages, images, search values, and
-options. Responses are non-streaming JSON; the proxy
-times out after 180 seconds within a 200-second Fluid compute function.
+options. Responses are non-streaming JSON; the proxy times out after 180 seconds
+within a 200-second Fluid compute function.
 
 `INFERENCE_FALLBACK_ENABLED=false` disables hosted inference. Missing shared
 configuration fails closed. All hosted requests use the shared service;
@@ -78,9 +78,7 @@ keys, generic selection/model aliases, and quota settings are no longer read.
 `npm run dev` serves both `/api/inference` and `/api/preview`. The shared
 service can run independently on port 3001: use
 `SHARED_INFERENCE_URL=http://127.0.0.1:3001/api/inference` in `.env.local`.
-Local HTTP is rejected in deployed Preview/Production. See
-[rollout and validation](docs/shared-inference-rollout.md) for smoke commands,
-the Vercel cleanup list, and the working shared-service rollback deployment.
+Local HTTP is rejected in deployed Preview/Production.
 
 Without an inference extension, the panel asks for consent before sending the
 note and questions to the hosted provider. Hosted requests retain a per-browser
@@ -96,3 +94,23 @@ to Inference Bridge.
 npm test
 npm run build
 ```
+
+For functional checks against a protected Preview deployment:
+
+```bash
+npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --checks --followup --vercel
+npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --image-url 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=4000&q=100' --search --vercel
+```
+
+Each command makes a real generation; `--followup` adds another. `--vercel`
+uses the authenticated Vercel CLI for protected Preview access; omit it for
+public endpoints. `VERCEL_CLI_PATH` can point to the CLI's `dist/vc.js`.
+The image command exercises a full-size photo downloaded by the shared service,
+including its base64 upstream payload. Check the returned scene description;
+citations alone do not independently verify search execution.
+
+The shared-Replit deployment verified on November 4, 2026 is
+`dpl_2449EgdKfVVAu3Ayif2DsHKtcfZr`
+([deployment URL](https://advancednostrsearch-i5lpdrnxr-samsamskies-projects.vercel.app)).
+Restore that existing deployment through Vercel deployment history when rollback
+is needed, preserving its captured shared configuration and credentials.
