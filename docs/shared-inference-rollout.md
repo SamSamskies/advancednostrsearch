@@ -115,9 +115,21 @@ follow-up, provider-default reasoning, forged selectors/credentials, methods,
 origin, prompt/options/client validation, and UTF-8 rejection during this cleanup.
 The immutable rollback deployment also passed a full-size-image smoke with
 search enabled: its response described sunset/sunrise over mountain silhouettes
-and returned an HTTPS source link. Cleanup-branch Preview validation follows
-the source push. A production build using unique backend configuration/secret
-markers passed; none of the markers appeared in any browser build artifact.
+and returned an HTTPS source link.
+
+The cleanup source commit `d94418ef55387e12fe8fa78082c20d114c134cec` passed the
+same text/negative/follow-up checks plus a combined full-size-image/search-enabled
+smoke on automatic protected Preview:
+
+- Deployment: `dpl_7PP5tRNPzv2H6HVJm89LBdqQQK6U` (Ready).
+- URL: <https://advancednostrsearch-np6alxfw7-samsamskies-projects.vercel.app>.
+- Observed response: sunburst above rolling mountain silhouettes, orange-to-blue
+  sunset sky, and an HTTPS Nostr source link.
+
+A production build using unique backend configuration/secret markers passed;
+none of the markers appeared in any browser build artifact. A source reference
+check found no removed modules, direct image-DNS seam, or direct-provider
+endpoints in the app/server/smoke sources.
 Actual search execution must be checked using gateway/provider usage evidence;
 HTTPS citations alone do not independently prove a search ran. Browser
 interaction with an installed IPA extension is covered by automated tests and
