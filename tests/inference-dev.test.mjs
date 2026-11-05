@@ -46,7 +46,7 @@ test("Vite serves the server-only shared proxy alongside note previews", async (
     assert.equal(upstreamRequests[1].headers.authorization, "Bearer local-app-secret");
     const posted = JSON.parse(upstreamRequests[1].body);
     assert.equal(posted.model, "local/model");
-    assert.deepEqual(posted.options, {});
+    assert.equal(posted.options, undefined);
     const oversized = await fetch(`${origin}/api/inference`, {
       method: "POST", headers: { Origin: origin }, body: "😀".repeat(26_000),
     });

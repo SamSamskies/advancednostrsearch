@@ -94,7 +94,7 @@ TrendingNostr or the shared service.
 
 ## Validation
 
-The cleanup passes all 65 tests and the production build. Direct-only suites
+The cleanup passes all 67 tests and the production build. Direct-only suites
 were removed with their unused modules. Retained coverage exercises trusted
 header/model injection, forged selectors and credentials, UTF-8 limits,
 errors/Retry-After, redaction, timeout/cancellation, consent/client identity/soft
@@ -102,6 +102,19 @@ counts, IPA preference, images/search/follow-ups, and default/explicit reasoning
 New assertions ensure missing shared credentials and the hosted kill switch
 cannot trigger direct inference, and the backend env loader ignores retired
 settings while loading active shared settings.
+
+Following [TrendingNostr PR #113](https://github.com/SamSamskies/trendingnostr/pull/113),
+the proxy delegates message/image semantics, prompt-length limits, search-value
+normalization, and options validation to the shared API. It keeps JSON/object
+checks, incoming/outgoing UTF-8 limits, the top-level field allowlist, trusted
+headers/model injection, and the app-owned Gemini search opt-in. Omitted options
+remain omitted; future nested options pass through to the service. Temporary
+non-JSON WAF 429 responses still retain their retryable classification.
+All 67 tests pass after this simplification. A local compatibility check against
+the shared API's actual request normalizer passed 11 cases without any network
+or provider calls, including invalid requests/options, the prompt limit, absent
+and explicit reasoning, search normalization, image/follow-up handling, and
+ignored browser credentials in nested options.
 
 The Vite integration test starts the real app middleware and a separate shared
 HTTP fixture, checks both API routes and UTF-8 rejection, and verifies backend

@@ -53,7 +53,7 @@ async function call(options) {
   return res;
 }
 
-test("proxy owns identity, keys, provider/model and forwards only allowed fields", async () => {
+test("proxy owns identity, keys, provider/model and forwards only allowed top-level fields", async () => {
   process.env.OLLAMA_API_KEY = "old-direct-key";
   process.env.GEMINI_API_KEY = "wrong-provider-key";
   process.env.OLLAMA_MODEL = "gemma4:cloud";
@@ -72,7 +72,7 @@ test("proxy owns identity, keys, provider/model and forwards only allowed fields
     assert.equal(options.redirect, "error");
     assert.equal(options.signal.aborted, false);
     assert.deepEqual(JSON.parse(options.body), {
-      messages, webSearch: false, options: {}, model: "gemma4:cloud",
+      messages, webSearch: false, options: { apiKey: "attacker" }, model: "gemma4:cloud",
     });
     return Response.json({ content: "Answer", model: "gemma4:31b", provider: "ollama" });
   };
@@ -247,26 +247,52 @@ test("payload limits count UTF-8 bytes for raw, parsed and buffered bodies, incl
     assert.equal((await call({ body })).statusCode, 413);
   }
   assert.equal((await call({ headers: { "content-length": "100001" } })).statusCode, 413);
-  assert.equal((await call({ body: { messages: [{ role: "user", content: "x".repeat(60_001) }] } })).statusCode, 413);
-  // The incoming body fits, but the server-owned model and options exceed 100k.
-  const input = JSON.stringify({ messages: [{ role: "user", content: "😀".repeat(24_982) }], webSearch: false });
-  assert.ok(Buffer.byteLength(input) <= 100_000);
+  // The incoming body fits, but injecting the server-owned model exceeds 100k.
+  const body = { messages: [{ role: "user", content: "😀".repeat(24_900) }], webSearch: false };
+  body.messages[0].content += "x".repeat(100_000 - Buffer.byteLength(JSON.stringify(body)));
+  const input = JSON.stringify(body);
+  assert.equal(Buffer.byteLength(input), 100_000);
   assert.equal((await call({ body: input })).statusCode, 413);
 });
 
-test("malformed messages, image parts, options, search flags and client tokens never reach upstream", async () => {
-  for (const body of ["{", "null", [], {}, { messages: [] },
-    { messages: [{ role: "assistant", content: "No user" }] },
-    { messages: [{ role: "tool", content: "No tools" }] },
-    { messages: [{ role: "user", content: [{ type: "image", url: "file:///etc/passwd" }] }] },
-    { messages: [{ role: "user", content: [{ type: "image", url: "https://user:pass@images.test/a.png" }] }] },
-    { messages: [{ role: "user", content: [{ type: "image", mediaType: "image/svg+xml", data: "AQID" }] }] },
-    { messages: [{ role: "user", content: [{ type: "image", mediaType: "image/png", data: "invalid!" }] }] },
-    { messages, options: [] }, { messages, options: { temperature: 3 } },
-    { messages, options: { reasoningEffort: "invalid" } }, { messages, webSearch: "false" },
-  ]) assert.equal((await call({ body })).statusCode, 400);
+test("invalid JSON, non-object bodies and invalid client headers stop at the proxy", async () => {
+  for (const body of ["{", "null", [], 42]) {
+    assert.equal((await call({ body })).statusCode, 400);
+  }
   assert.equal((await call({ headers: { "x-inference-client": "" } })).body.error, "missing_client_token");
   assert.equal((await call({ headers: { "x-inference-client": "bad\r\nheader" } })).body.error, "invalid_client_token");
+});
+
+test("message, image and option semantics are delegated to the shared service", async () => {
+  for (const [fields, status] of [
+    [{}, 400], [{ messages: [] }, 400],
+    [{ messages: [{ role: "assistant", content: "No user" }] }, 400],
+    [{ messages: [{ role: "user", content: "x".repeat(60_001) }] }, 413],
+    [{ messages: [{ role: "user", content: [{ type: "image", mediaType: "image/svg+xml", data: "invalid!" }] }] }, 400],
+    [{ messages, options: [] }, 400], [{ messages, options: { temperature: 3 } }, 400],
+    [{ messages, options: { reasoningEffort: "invalid" } }, 400],
+  ]) {
+    let calls = 0;
+    const error = status === 413 ? "payload_too_large" : "invalid_request";
+    globalThis.fetch = async (_url, init) => {
+      calls++;
+      assert.deepEqual(JSON.parse(init.body), { ...fields, model: "gemma4:cloud" });
+      return Response.json({ error }, { status });
+    };
+    const result = await call({ body: fields });
+    assert.equal(calls, 1);
+    assert.equal(result.statusCode, status);
+    assert.deepEqual(result.body, { error });
+  }
+});
+
+test("the proxy preserves service-supported search values and future nested options", async () => {
+  const fields = { messages, webSearch: "false", options: { futureOption: { enabled: true } } };
+  globalThis.fetch = async (_url, init) => {
+    assert.deepEqual(JSON.parse(init.body), { ...fields, model: "gemma4:cloud" });
+    return Response.json({ content: "Answer" });
+  };
+  assert.equal((await call({ body: fields })).statusCode, 200);
 });
 
 test("images, search, follow-ups and explicit reasoning options survive the proxy", async () => {
@@ -279,9 +305,7 @@ test("images, search, follow-ups and explicit reasoning options survive the prox
     const data = JSON.parse(options.body);
     assert.deepEqual(data.options, { temperature: 0.4, reasoningEffort: "high" });
     assert.equal(data.webSearch, true);
-    assert.deepEqual(data.messages[1].content[0], { type: "image", url: "https://images.test/a.png" });
-    assert.deepEqual(data.messages.slice(2), conversation.slice(2));
-    assert.equal(data.messages[1].content[1].data, "AQID");
+    assert.deepEqual(data.messages, conversation);
     return Response.json({ content: "Context", model: "gemma4:31b" });
   };
   assert.equal((await call({ body: { messages: conversation, webSearch: true, options: { temperature: 0.4, reasoningEffort: "high" } } })).statusCode, 200);

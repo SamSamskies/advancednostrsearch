@@ -60,7 +60,9 @@ Keep selection/model/URL/enablement settings as **Config** and app/provider
 credentials as **Secret**. Never prefix them with `VITE_` or commit secret
 values. The backend fixes the `advancednostrsearch` app identity and injects
 its selected provider key and model. Browser-selected providers, models, and
-credentials cannot override them. Responses are non-streaming JSON; the proxy
+credentials cannot override them. The proxy bounds requests and selects public
+fields; the shared service validates messages, images, search values, and
+options. Responses are non-streaming JSON; the proxy
 times out after 180 seconds within a 200-second Fluid compute function.
 
 `INFERENCE_FALLBACK_ENABLED=false` disables hosted inference. Missing shared
