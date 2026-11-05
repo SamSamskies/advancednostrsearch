@@ -15,7 +15,7 @@ beforeEach(() => {
     if (/^(INFERENCE_|SHARED_INFERENCE_|GEMINI_|OLLAMA_|REPLIT_|VERCEL)/.test(name)) delete process.env[name];
   }
   Object.assign(process.env, {
-    SHARED_INFERENCE_ENABLED: "true",
+    SHARED_INFERENCE_PROVIDER: "ollama",
     SHARED_INFERENCE_URL: "https://shared.example/api/inference?provider=forged&provider=replit&model=forged",
     SHARED_INFERENCE_APP_SECRET: "test-app-secret",
     SHARED_INFERENCE_OLLAMA_API_KEY: "test-ollama-key",
@@ -91,15 +91,17 @@ test("proxy owns identity, keys, provider/model and forwards only allowed fields
   assert.equal(res.headers["cache-control"], "no-store");
 });
 
-test("backend model precedence, provider credentials and direct-route kill switches remain intact", async () => {
+test("shared providers retain independent models/keys and ignore legacy aliases", async () => {
   const cases = [
     { provider: "ollama", specific: "custom:cloud", legacy: "legacy", expected: "custom:cloud" },
-    { provider: "ollama", legacy: "legacy", expected: "legacy" },
+    { provider: "ollama", legacy: "legacy", expected: "gemma4:cloud" },
     { provider: "gemini", expected: "gemma-4-31b-it" },
     { provider: "gemini", specific: "gemini-2.5-flash", legacy: "legacy", expected: "gemini-2.5-flash" },
   ];
   for (const c of cases) {
-    process.env.INFERENCE_PROVIDER = c.provider;
+    process.env.SHARED_INFERENCE_PROVIDER = c.provider;
+    process.env.INFERENCE_PROVIDER = "ignored-legacy-provider";
+    process.env.GEMINI_FALLBACK_ENABLED = "false";
     delete process.env.OLLAMA_MODEL;
     delete process.env.GEMINI_MODEL;
     delete process.env.INFERENCE_MODEL;
@@ -113,10 +115,20 @@ test("backend model precedence, provider credentials and direct-route kill switc
     };
     assert.equal((await call()).statusCode, 200);
   }
-  process.env.GEMINI_FALLBACK_ENABLED = "false";
-  assert.equal((await call()).body.error, "disabled");
-  process.env.INFERENCE_FALLBACK_ENABLED = "true";
-  assert.equal((await call()).statusCode, 200);
+});
+
+test("hosted kill switch blocks GET/POST for every shared provider without upstream work", async () => {
+  for (const provider of ["replit", "ollama", "gemini"]) {
+    process.env.SHARED_INFERENCE_PROVIDER = provider;
+    for (const flag of ["false", "0", " OFF "]) {
+      process.env.INFERENCE_FALLBACK_ENABLED = flag;
+      for (const method of ["GET", "POST"]) {
+        const res = await call({ method });
+        assert.equal(res.statusCode, 503);
+        assert.equal(res.body.error, "disabled");
+      }
+    }
+  }
 });
 
 test("authenticated GET uses no client/model and passes through service availability", async () => {
@@ -144,17 +156,17 @@ test("missing or invalid shared settings fail closed without using retained cred
   for (const name of ["SHARED_INFERENCE_URL", "SHARED_INFERENCE_APP_SECRET", "SHARED_INFERENCE_OLLAMA_API_KEY"]) {
     const value = process.env[name];
     delete process.env[name];
-    assert.equal((await call({ method: "GET" })).statusCode, 503);
+    for (const method of ["GET", "POST"]) assert.equal((await call({ method })).statusCode, 503);
     process.env[name] = value;
   }
   for (const provider of ["typo", "constructor"]) {
-    process.env.INFERENCE_PROVIDER = provider;
+    process.env.SHARED_INFERENCE_PROVIDER = provider;
     assert.equal((await call()).body.error, "invalid_provider");
   }
-  delete process.env.INFERENCE_PROVIDER;
-  process.env.OLLAMA_MODEL = "invalid model";
+  process.env.SHARED_INFERENCE_PROVIDER = "replit";
+  process.env.REPLIT_INFERENCE_MODEL = "invalid model";
   assert.equal((await call()).body.error, "invalid_model");
-  delete process.env.OLLAMA_MODEL;
+  delete process.env.REPLIT_INFERENCE_MODEL;
   for (const url of ["http://external.example/api/inference", "https://user:pass@example.com/api/inference", "https://example.com/other", "https://example.com/api/inference#hash"]) {
     process.env.SHARED_INFERENCE_URL = url;
     assert.equal((await call()).body.error, "invalid_shared_config");
@@ -176,12 +188,25 @@ test("backend local env loader includes every shared setting without browser pre
   const directory = mkdtempSync(join(tmpdir(), "advancednostrsearch-inference-env-"));
   try {
     writeFileSync(join(directory, ".env.local"), [
-      "SHARED_INFERENCE_ENABLED=true",
       "SHARED_INFERENCE_URL=http://127.0.0.1:3001/api/inference",
       "SHARED_INFERENCE_APP_SECRET=local-loader-app-secret",
       "SHARED_INFERENCE_PROVIDER=replit",
       "SHARED_INFERENCE_REPLIT_API_KEY=local-loader-key",
       "REPLIT_INFERENCE_MODEL=custom/loader-model",
+      "INFERENCE_FALLBACK_ENABLED=true",
+      "OLLAMA_MODEL=custom:cloud",
+      "GEMINI_MODEL=custom-gemini",
+      "SHARED_INFERENCE_OLLAMA_API_KEY=local-ollama-key",
+      "SHARED_INFERENCE_GEMINI_API_KEY=local-gemini-key",
+      "SHARED_INFERENCE_GEMINI_SEARCH_ENABLED=true",
+      "INFERENCE_API_KEY=obsolete-key",
+      "GEMINI_API_KEY=obsolete-key",
+      "OLLAMA_API_KEY=obsolete-key",
+      "INFERENCE_PROVIDER=obsolete-provider",
+      "INFERENCE_MODEL=obsolete-model",
+      "INFERENCE_CLIENT_DAILY_LIMIT=1",
+      "SHARED_INFERENCE_ENABLED=false",
+      "VITE_SHARED_INFERENCE_APP_SECRET=browser-must-not-load",
     ].join("\n"));
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
       !/^(INFERENCE_|SHARED_INFERENCE_|GEMINI_|OLLAMA_|REPLIT_|VERCEL)/.test(key)));
@@ -195,6 +220,15 @@ test("backend local env loader includes every shared setting without browser pre
         return Response.json({ content: 'OK' });
       };
       const { default: handler } = await import(${JSON.stringify(new URL("../api/inference.js", import.meta.url).href)});
+      for (const name of ['INFERENCE_API_KEY', 'GEMINI_API_KEY', 'OLLAMA_API_KEY', 'INFERENCE_PROVIDER', 'INFERENCE_MODEL', 'INFERENCE_CLIENT_DAILY_LIMIT', 'SHARED_INFERENCE_ENABLED', 'VITE_SHARED_INFERENCE_APP_SECRET']) {
+        assert.equal(process.env[name], undefined);
+      }
+      assert.equal(process.env.INFERENCE_FALLBACK_ENABLED, 'true');
+      assert.equal(process.env.OLLAMA_MODEL, 'custom:cloud');
+      assert.equal(process.env.GEMINI_MODEL, 'custom-gemini');
+      assert.equal(process.env.SHARED_INFERENCE_OLLAMA_API_KEY, 'local-ollama-key');
+      assert.equal(process.env.SHARED_INFERENCE_GEMINI_API_KEY, 'local-gemini-key');
+      assert.equal(process.env.SHARED_INFERENCE_GEMINI_SEARCH_ENABLED, 'true');
       const res = {
         setHeader() {}, status(code) { assert.equal(code, 200); return this; },
         json(data) { assert.equal(data.content, 'OK'); },
@@ -254,7 +288,7 @@ test("images, search, follow-ups and explicit reasoning options survive the prox
 });
 
 test("Gemini search requires an explicit server opt-in after validation", async () => {
-  process.env.INFERENCE_PROVIDER = "gemini";
+  process.env.SHARED_INFERENCE_PROVIDER = "gemini";
   assert.equal((await call({ body: { messages, webSearch: true } })).body.error, "unsupported_capability");
   globalThis.fetch = async () => Response.json({ content: "OK" });
   assert.equal((await call()).statusCode, 200);
@@ -290,18 +324,19 @@ test("shared Replit selection uses only its backend key/model and preserves imag
   assert.equal((await call({ body })).body.model, expectedModel);
 });
 
-test("shared provider override does not reuse another provider's legacy model or disable flag", async () => {
+test("legacy provider/model and Gemini disable flag do not affect any shared provider", async () => {
   process.env.INFERENCE_PROVIDER = "gemini";
   process.env.GEMINI_FALLBACK_ENABLED = "false";
   process.env.INFERENCE_MODEL = "legacy-gemini-model";
   process.env.SHARED_INFERENCE_PROVIDER = "ollama";
   globalThis.fetch = async (_url, init) => {
-    assert.equal(JSON.parse(init.body).model, "gemma4:cloud");
+    assert.equal(JSON.parse(init.body).model,
+      process.env.SHARED_INFERENCE_PROVIDER === "ollama" ? "gemma4:cloud" : "gemma-4-31b-it");
     return Response.json({ content: "Answer" });
   };
   assert.equal((await call()).statusCode, 200);
   process.env.SHARED_INFERENCE_PROVIDER = "gemini";
-  assert.equal((await call()).body.error, "disabled");
+  assert.equal((await call()).statusCode, 200);
 });
 
 test("Replit key/model settings fail closed without direct credentials", async () => {
@@ -312,9 +347,6 @@ test("Replit key/model settings fail closed without direct credentials", async (
   process.env.SHARED_INFERENCE_REPLIT_API_KEY = "test-replit-key";
   process.env.REPLIT_INFERENCE_MODEL = "invalid model";
   assert.equal((await call()).body.error, "invalid_model");
-  process.env.SHARED_INFERENCE_ENABLED = "false";
-  process.env.INFERENCE_PROVIDER = "replit";
-  assert.equal((await call()).body.error, "invalid_provider");
 });
 
 test("service errors, admission failures and Retry-After pass through without retries", async () => {
@@ -399,22 +431,27 @@ test("browser disconnect and explicit abort cancel upstream and remove event lis
   }
 });
 
-test("independent rollback uses the retained direct provider without shared credentials", async () => {
-  process.env.SHARED_INFERENCE_PROVIDER = "replit";
-  process.env.REPLIT_INFERENCE_MODEL = "custom/replit-model";
+test("retired switch cannot select direct inference; shared defaults to Replit", async () => {
+  delete process.env.SHARED_INFERENCE_PROVIDER;
+  process.env.INFERENCE_PROVIDER = "ollama";
   process.env.OLLAMA_API_KEY = "direct-key";
   process.env.OLLAMA_REQUESTS_PER_MINUTE = "100";
   for (const enabled of [undefined, "false", "0", "off"]) {
     if (enabled === undefined) delete process.env.SHARED_INFERENCE_ENABLED;
     else process.env.SHARED_INFERENCE_ENABLED = enabled;
     globalThis.fetch = async (url, options) => {
-      assert.equal(url, "https://ollama.com/api/chat");
-      assert.equal(options.headers.Authorization, "Bearer direct-key");
-      assert.equal(JSON.parse(options.body).model, "gemma4:31b");
-      return Response.json({ message: { role: "assistant", content: "Direct answer" }, done: true });
+      assert.equal(url, "https://shared.example/api/inference?provider=replit");
+      assert.equal(options.headers.Authorization, "Bearer test-app-secret");
+      assert.equal(options.headers["X-Inference-Provider-Key"], "test-replit-key");
+      assert.equal(JSON.parse(options.body).model, "google/gemma-4-26b-a4b-it");
+      return Response.json({ content: "Shared answer" });
     };
     const result = await call({ headers: { "x-inference-client": crypto.randomUUID() } });
-    assert.equal(result.body.content, "Direct answer", JSON.stringify(result.body));
+    assert.equal(result.body.content, "Shared answer", JSON.stringify(result.body));
+    delete process.env.SHARED_INFERENCE_REPLIT_API_KEY;
+    globalThis.fetch = () => { throw new Error("Missing shared key must not reach upstream"); };
+    assert.equal((await call()).body.error, "missing_api_key");
+    process.env.SHARED_INFERENCE_REPLIT_API_KEY = "test-replit-key";
   }
 });
 

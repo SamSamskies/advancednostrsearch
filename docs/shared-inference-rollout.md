@@ -1,139 +1,172 @@
-# Hosted inference rollout
+# Shared hosted inference
 
-Implements [issue #54](https://github.com/SamSamskies/advancednostrsearch/issues/54)
-using [TrendingNostr PR #111](https://github.com/SamSamskies/trendingnostr/pull/111).
-The owner's subsequent instruction removes the issue's requested
-`reasoningEffort: "none"` default: absent reasoning stays absent, and explicit
-caller options still pass through. IPA preference, consent, storage keys,
-non-streaming responses, images, and follow-up conversations remain intact.
+[Issue #56](https://github.com/SamSamskies/advancednostrsearch/issues/56)
+removes the direct-provider implementation after the migration in
+[PR #55](https://github.com/SamSamskies/advancednostrsearch/pull/55).
+The owner confirmed shared Replit works in Production on November 4, 2026.
+All hosted requests now use the authenticated shared service. The retired
+route switch cannot restore direct inference; incomplete shared configuration
+fails closed. IPA preference, browser consent/storage keys, client identity,
+soft counts, images/search/follow-ups, and non-streaming responses are preserved.
+Absent reasoning uses provider defaults; explicit caller options pass through.
 
-## Baseline and configuration
+## Backend configuration
 
-Recorded November 4, 2026:
-
-- Verified pre-migration `main`: `c5d22d6fe96376f8e8927c9a39364f504645f90a`.
-- Production alias: `https://advancednostrsearch.vercel.app`.
-- Ready production deployment: `dpl_G215ZioEpfNNtb7Nbif6gGXVZN7Q`.
-- Rollback URL: `https://advancednostrsearch-230mw9976-samsamskies-projects.vercel.app`.
-  Vercel deployment metadata confirms the baseline commit above.
-- Production and Preview contain the staged shared URL, app secret, and all
-  three `SHARED_INFERENCE_*_API_KEY` names. Existing direct Gemini/Ollama keys
-  remain present. Secret values were not printed, replaced, or rotated.
-- Preview-only Vercel authentication was enabled for this project, which
-  previously had no preview protection. Production remains public.
-- `vercel.json` explicitly enables Fluid compute: this older project's legacy
-  runtime rejected the required 200-second duration. Project-level Fluid compute
-  was also enabled because automatic GitHub builds applied the legacy limit
-  before the per-deployment setting. Future builds now support the 180-second
-  proxy timeout without changing the account plan; the running production
-  deployment was not replaced.
-  See [Vercel Fluid compute](https://vercel.com/docs/fluid-compute).
-
-The switch defaults off. Merging source alone does not select shared inference.
-For this app's authorized release, use the following **backend-only** selection,
-first in Preview and then in Production:
+Use these server-only values in both Preview and Production:
 
 ```dotenv
-SHARED_INFERENCE_ENABLED=true
+INFERENCE_FALLBACK_ENABLED=true
 SHARED_INFERENCE_PROVIDER=replit
 REPLIT_INFERENCE_MODEL=google/gemma-4-26b-a4b-it
 SHARED_INFERENCE_URL=https://ipa-inference-fallback-api.vercel.app/api/inference
-SHARED_INFERENCE_APP_SECRET=<existing AdvancedNostrSearch secret>
+SHARED_INFERENCE_APP_SECRET=<existing AdvancedNostrSearch app secret>
 SHARED_INFERENCE_REPLIT_API_KEY=<existing gateway key>
-INFERENCE_FALLBACK_ENABLED=true
 ```
 
-Use the existing staged sensitive values, never these placeholders. Keep the
-independent direct provider/model/key settings. Shared Replit uses only its
-specific shared key and dedicated model setting; no legacy/direct Replit route
-exists. Do not add `VITE_` prefixes. Branch-specific Preview settings should
-select shared Replit for `codex/shared-hosted-inference`.
+Keep enablement/provider/model/URL as **Config**, and app/provider credentials
+as **Secret**. Use the staged secret values; never commit them or prefix settings
+with `VITE_`. The backend fixes the app identity to `advancednostrsearch` and
+injects the model and matching provider key. Replit is the default when no shared
+provider is set. `INFERENCE_FALLBACK_ENABLED=false` disables hosted inference
+without affecting IPA. No shared failure triggers automatic retries or direct
+provider calls.
 
-The gateway's Replit key is intentionally shared by the two app backends. App
-secrets and service admission buckets remain independent. Coordinate any gateway
-key rotation across both apps. No shared-service deployment change is needed.
+Shared Ollama/Gemini remain available via `SHARED_INFERENCE_PROVIDER` and their
+matching `SHARED_INFERENCE_OLLAMA_API_KEY` / `SHARED_INFERENCE_GEMINI_API_KEY`.
+`OLLAMA_MODEL` and `GEMINI_MODEL` remain optional Config overrides (defaults
+`gemma4:cloud` and `gemma-4-31b-it`). Gemini web search requires separate
+selected-model validation before setting the Config
+`SHARED_INFERENCE_GEMINI_SEARCH_ENABLED=true`.
 
-## Validation evidence
+The proxy retains its 100,000-byte UTF-8 browser/outgoing-request limits and
+180-second timeout, including response reading. `vercel.json` retains Fluid
+compute and a 200-second function duration. Project-level Fluid compute was
+enabled during migration; do not revert it to the legacy runtime.
 
-All 92 automated tests and the production build passed. Coverage includes
-trusted header/field construction, forged headers/selectors, provider/model/key
-isolation, authenticated GET, methods/origins, 100,000-byte incoming and outgoing
-UTF-8 request limits, image/options/follow-up forwarding, cancellation through
-response reading, 180-second timeout, credential redaction, error/Retry-After
-propagation, no automatic fallback/retry, and independent direct rollback.
-Browser-backend tests cover IPA preference, tab consent, stable client identity,
-soft counts, explicit options, absent reasoning, non-streaming completion,
-platform 429 versus explicit quota failures, and Stop during response reading.
-A real loopback integration starts Vite and a separate shared-service fixture;
-it verifies `/api/inference` routing, backend env isolation, UTF-8 rejection,
-and the retained `/api/preview` middleware.
+## Environment cleanup checklist
 
-Live functional validation used this app's own identity and staged credentials:
+Vercel settings were inspected on November 4, 2026. **No Vercel environment
+variables were changed by this cleanup.** After deploying the cleanup, the
+owner can delete these entries from this project's settings:
 
-| Route | Deployment | Results |
+| Variable | Currently present scopes | Action |
 | --- | --- | --- |
-| Shared Replit | `dpl_4vYwjjb3VxQzUSNEJuXdimqa2dRu` — [Preview](https://advancednostrsearch-odvpyyrdi-samsamskies-projects.vercel.app) | GET availability; text; follow-up; provider-default reasoning; forged headers/body/query selectors; methods/origin/options/client/UTF-8 rejection; red image correctly identified; search-enabled response with HTTPS citations; full-size photo |
-| PR code commit `94678d9f81fadc52944ce52487fdcc4fb7a2cc32` | `dpl_baDmSpff7LLF1Vp86FKzBHgc9xJ8` — [Preview](https://advancednostrsearch-hed69bbzq-samsamskies-projects.vercel.app) | Ready GitHub-source build after enabling project-level Fluid compute; authenticated shared Replit availability/generation recheck |
-| Direct rollback | `dpl_ELUxP19n1v3qe36PviuEcPw9XV8M` — [Preview](https://advancednostrsearch-1m3nprmw1-samsamskies-projects.vercel.app) | GET availability and successful direct Ollama generation with `SHARED_INFERENCE_ENABLED=false`, while shared Replit provider/model settings remain present |
+| `GEMINI_API_KEY` | Production and Preview | Delete both obsolete direct-provider Secret entries |
+| `OLLAMA_API_KEY` | Production and Preview | Delete both obsolete direct-provider Secret entries |
+| `SHARED_INFERENCE_ENABLED` | Production; Preview restricted to `codex/shared-hosted-inference` | Delete the retired Config switch in both scopes |
 
-The full-size test used this [public JPEG](https://images.unsplash.com/photo-1500534623283-312aade485b7?w=4000&q=100):
-3,203,930 image bytes become 4,271,908 base64 bytes before upstream JSON framing.
-The browser sends a small URL request; the service downloads the photo. The
-returned description identified sunset light over layered mountain silhouettes.
-This exercises the former 1 MB gateway-body failure, unlike the tiny color fixture.
+The three active Config values `SHARED_INFERENCE_PROVIDER`,
+`REPLIT_INFERENCE_MODEL`, and `INFERENCE_FALLBACK_ENABLED` currently have
+Production entries and Preview entries restricted to the old
+`codex/shared-hosted-inference` branch. Set those same non-secret values for
+**all Preview branches**, then remove their obsolete branch-specific duplicates.
+Keep their Production entries. The shared URL and all four shared app/provider
+Secret names already cover both Preview and Production; keep them.
 
-Search-enabled responses and citations passed. Private gateway/provider usage
-was not inspected, so actual search execution is not independently confirmed.
-Deployed browser interaction with an installed IPA extension was not manually
-retested; its routing and consent behavior are covered by automated tests.
-Production activation and its availability/generation smoke remain release work.
+If any old settings are later found in local files, other Vercel scopes, or
+branch overrides, these names also have no consumers:
 
-## Repeating smoke checks
+```text
+INFERENCE_API_KEY
+INFERENCE_PROVIDER
+INFERENCE_MODEL
+INFERENCE_CLIENT_DAILY_LIMIT
+GEMINI_FALLBACK_ENABLED
+GEMINI_CLIENT_DAILY_LIMIT
+OLLAMA_CLIENT_REQUESTS_PER_MINUTE
+OLLAMA_REQUESTS_PER_MINUTE
+OLLAMA_MAX_CONCURRENT
+```
 
-Each smoke invocation makes one real generation. `--followup` adds a second.
-The command does not require app or provider credentials:
+They were not present in the inspected Vercel listing. Do not delete
+`INFERENCE_FALLBACK_ENABLED`, `REPLIT_INFERENCE_MODEL`, `OLLAMA_MODEL`,
+`GEMINI_MODEL`, or any active `SHARED_INFERENCE_*` settings other than the
+retired `SHARED_INFERENCE_ENABLED` switch. The local `.env.local` contained only
+the two direct-provider key names above and a Vercel tooling token; the direct
+key entries were removed without printing their values. Local hosted use now
+requires the shared configuration from `.env.example`; IPA still works alone.
+
+Removing a project variable does not revoke the provider credential. No keys
+were revoked or rotated. Check other apps/scripts and deployment dependencies
+before any later credential revocation. In particular, keep the single Replit
+gateway key shared by the two app backends; this cleanup does not change
+TrendingNostr or the shared service.
+
+## Validation
+
+The cleanup passes all 65 tests and the production build. Direct-only suites
+were removed with their unused modules. Retained coverage exercises trusted
+header/model injection, forged selectors and credentials, UTF-8 limits,
+errors/Retry-After, redaction, timeout/cancellation, consent/client identity/soft
+counts, IPA preference, images/search/follow-ups, and default/explicit reasoning.
+New assertions ensure missing shared credentials and the hosted kill switch
+cannot trigger direct inference, and the backend env loader ignores retired
+settings while loading active shared settings.
+
+The Vite integration test starts the real app middleware and a separate shared
+HTTP fixture, checks both API routes and UTF-8 rejection, and verifies backend
+credentials stay out of the served browser module. `npm run dev` continues to
+serve both endpoints. A separate local shared service can use port 3001 with
+`SHARED_INFERENCE_URL=http://127.0.0.1:3001/api/inference`. Local HTTP is rejected
+in deployed Preview/Production.
+
+The existing shared-service Production endpoint passed availability, text,
+follow-up, provider-default reasoning, forged selectors/credentials, methods,
+origin, prompt/options/client validation, and UTF-8 rejection during this cleanup.
+The immutable rollback deployment also passed a full-size-image smoke with
+search enabled: its response described sunset/sunrise over mountain silhouettes
+and returned an HTTPS source link. Cleanup-branch Preview validation follows
+the source push. A production build using unique backend configuration/secret
+markers passed; none of the markers appeared in any browser build artifact.
+Actual search execution must be checked using gateway/provider usage evidence;
+HTTPS citations alone do not independently prove a search ran. Browser
+interaction with an installed IPA extension is covered by automated tests and
+was not manually repeated.
+
+## Repeating functional smokes
+
+Each invocation makes one real generation; `--followup` adds another. No app
+or provider credentials are needed in the caller:
 
 ```sh
 npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --checks --followup --vercel
-npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --vision --vercel
-npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --search --vercel
-npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --image-url 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=4000&q=100' --vercel
+npm run smoke:inference -- --url https://PREVIEW_HOST/api/inference --provider replit --image-url 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=4000&q=100' --search --vercel
 ```
 
-`--vercel` uses an authenticated Vercel CLI to handle protected-preview access.
-If the CLI is not on PATH, `VERCEL_CLI_PATH` may point to its `dist/vc.js`.
-Alternatively omit `--vercel` and supply an existing
-`VERCEL_AUTOMATION_BYPASS_SECRET` only in the smoke caller's environment. The
-proxy never forwards bypass credentials to the shared service. Keep protection
-enabled. Search citations alone do not prove a search tool executed; inspect
-private gateway usage when authorized.
+The second smoke combines a realistic full-size image with search enabled.
+This public JPEG was 3,203,930 bytes during migration, becoming 4,271,908 base64
+bytes before JSON framing upstream. The browser submits a small URL request;
+the service downloads/encodes the image. This exercises the gateway's 32 MB
+JSON-limit fix. The optional `--vision` red-image fixture is useful for a color
+check but cannot replace the full-size-image smoke. Read the returned scene
+description to verify the image was actually understood.
 
-Local development continues to use `npm run dev`. A separately running service
-may listen on port 3001; set the server-only local URL to
-`http://127.0.0.1:3001/api/inference`. HTTP local URLs are rejected in deployed
-Preview/Production. Gemini search requires separate selected-model validation
-before `SHARED_INFERENCE_GEMINI_SEARCH_ENABLED=true`.
+`--vercel` uses the authenticated Vercel CLI to access protected Preview.
+If needed, `VERCEL_CLI_PATH` points to its `dist/vc.js`. For a public endpoint,
+omit `--vercel`. An existing `VERCEL_AUTOMATION_BYPASS_SECRET` can alternatively
+be supplied only in the smoke caller's environment; bypass credentials never
+reach the shared service. Keep Preview protection enabled.
 
-## Release and rollback
+## Shared-service rollback target
 
-After preview checks and release authorization, merge the PR, apply the four
-non-secret selection settings to this app's Production environment, and redeploy.
-Retain the staged shared secret/key/URL and existing direct credentials. Record
-the release commit, deployment ID/URL, and normal availability/generation smoke.
-Changes to environment settings affect new deployments only.
+The following immutable deployment was Ready and served shared Replit on
+November 4, 2026:
 
-To roll back independently, change only `SHARED_INFERENCE_ENABLED=false` and
-redeploy. Verify GET availability and a direct request using the retained
-provider configuration. The protected rollback preview already passed this
-path. Alternatively restore the recorded pre-migration deployment. Leave
-TrendingNostr and the shared service unchanged. Never automatically try the
-direct route after a shared failure: that can bypass admission or duplicate a
-paid generation. Retire duplicated direct code/unused keys only in a later
-cleanup after observation.
+- Deployment: `dpl_2449EgdKfVVAu3Ayif2DsHKtcfZr`.
+- URL: <https://advancednostrsearch-i5lpdrnxr-samsamskies-projects.vercel.app>.
+- Production alias at verification: <https://advancednostrsearch.vercel.app>.
+- Migration source: PR #55, merged as `2b8f8074b347bc336dd97d03ae09594e0fbecabc`.
+  The CLI deployment response did not include a source commit; the working
+  deployment ID and observed shared-Replit behavior identify this rollback target.
 
-The shared admission rule is currently 10 POSTs per app per 60 seconds within a
-region, across providers/client IDs; it is not a global daily quota or spending
-cap. Development rate-limit validation is accepted for this migration.
-Production-specific WAF/load testing and provider spending-console checks are
-not release prerequisites under issue #54's accepted scope, and are not claimed
-as verified here.
+After release authorization, roll back by restoring this **shared-service**
+deployment through Vercel and repeat GET/text/full-size-image checks. Preserve
+its captured shared provider selection, URL, app secret, and provider key.
+Do not recreate a deployment from old source with the retired switch absent:
+that source still contains direct routing. If rebuilding rollback source,
+explicitly configure its shared-service path and verify it before promoting.
+Changes to project env settings affect new deployments only. No production
+promotion or rollback was performed for this cleanup.
+
+Production load/WAF testing and spending-console checks are not prerequisites
+under issue #54's accepted scope and are not claimed as verified.

@@ -21,7 +21,6 @@ test("Vite serves the server-only shared proxy alongside note previews", async (
     await once(upstream, "listening");
     delete process.env.VERCEL_ENV;
     Object.assign(process.env, {
-      SHARED_INFERENCE_ENABLED: "true",
       SHARED_INFERENCE_PROVIDER: "replit",
       SHARED_INFERENCE_URL: `http://127.0.0.1:${upstream.address().port}/api/inference`,
       SHARED_INFERENCE_APP_SECRET: "local-app-secret",
